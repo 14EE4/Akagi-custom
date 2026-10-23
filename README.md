@@ -9,8 +9,9 @@
 
 ## 1. 적용된 커스텀 수정 사항
 
-작혼 첫 판 시작 시 Python/PyTorch/Mortal 가중치(`mortal.pth`) 콜드 스타트로 인해 봇이 타임아웃으로 죽는 현상 및 저사양/노트북 CPU 환경에서의 추론/리플레이 지연을 해결하기 위해 다음 패치가 적용되어 있습니다.
+공식 Akagi v3의 기능을 대폭 확장하여 저사양/노트북 환경 최적화, 자동 연속 대국(Auto Queue), 실시간 디버거 HUD, AI 추천 확률 표시, 네트워크 단절 복구 및 서버 선택 기능 등이 적용되어 있습니다.
 
+### ⚡ 1. Mortal 봇 안정성 및 추론 속도 최적화 (콜드스타트 해결)
 1. **백그라운드 사전 워밍업 (`spawn_bot_prewarm`)**
    - 파일: `src/bot/supervisor.rs`, `src/ipc/commands.rs`
    - 아카기 실행 시 및 UI에서 봇 활성화 시 로비에서 미리 `bot.py 0`에 더미 `start_game` + `end_game`을 보내 Python, PyTorch DLL, `libriichi`, `mortal.pth`를 Windows RAM 캐시에 적재합니다.
@@ -30,6 +31,38 @@
    - 파일: `mjai_bot/mortal/model.py` (`MortalEngine._react_batch`, `_build_engine`)
    - 가능한 행동(`masks[0]`)이 단 1개뿐인 경우 40블록 ResNet을 실행하지 않고 즉시(`~0.4ms`) 확률 `100%`로 해당 행동을 반환합니다.
    - CPU 모드에서 PyTorch OpenMP 스레드 수를 최대 4개로 제한하여 Chromium(WebGL) 프로세스와의 CPU 코어 경합을 방지합니다.
+
+### 🔄 2. 네트워크 단절 복구 및 봇 수동 재동기화 (Resync Bot)
+7. **게임 일시 단절/재접속 시 원클릭 봇 깨우기 (`resync_bot`)**
+   - 파일: `src/bot/manager.rs`, `src/ipc/commands.rs`, `frontend/src/routes/PlayClient.tsx`
+   - 모바일 등 다른 기기에서 잠깐 접속하거나 네트워크 순단으로 클라이언트 연결이 끊겼을 때, 아카기를 재시작하지 않고 게임 탭의 **'봇 깨우기'** 버튼을 누르면 즉시 봇을 재스폰하고 현재 국 이벤트들을 재주입하여 대국을 계속 이어갑니다.
+
+### 🎮 3. 작혼 클라이언트 편의 기능 (리전 선택 & 탭 내장 뷰어)
+8. **작혼 서버/리전(Region) 원클릭 선택 지원**
+   - 파일: `frontend/src/routes/Settings.tsx`, `frontend/src/lib/platforms.ts`
+   - 일본 서버(`maj-soul.com`), 글로벌/한국/영문 서버(`mahjongsoul.game.yo-star.com`), 중국 서버를 설정 화면에서 간편하게 선택하여 접속할 수 있습니다.
+9. **독립 브라우저 창 분리 / 아카기 탭 내장(임베드) 토글**
+   - 파일: `src/ipc/embed.rs`, `frontend/src/routes/PlayClient.tsx`
+   - 아카기 메인 창 안에 작혼 브라우저 화면을 직접 고정하여 일체형으로 플레이하거나, 언제든지 외부 독립 창으로 분리할 수 있습니다. 탭 이동이나 창 최소화 시에도 백그라운드 렌더링과 오토플레이가 멈추지 않습니다.
+
+### 🔁 4. 대국 종료 후 자동 연속 매칭 (Auto Queue)
+10. **지능형 자동 다음 대국 진행 (Auto Queue)**
+   - 파일: `src/autoplay/auto_queue.rs`, `src/config/autoplay.rs`, `frontend/src/routes/PlayClient.tsx`
+   - 대국 종료(`EndGame`)를 감지하여 로비로 나가지 않고 결과창에서 바로 동일 룰의 다음 대국을 자동으로 찾아 연속 플레이합니다.
+   - **실전 최적 타이밍 기본 적용**: 대국 종료 직후 정산 연출 대기 `25초`, 확인 클릭 간격 `5초`로 안정적인 연출 스킵.
+   - **작사 캐릭터별 프리셋**: 일반 작사 `2회`, 계약 작사 `3회` 확인 횟수 원클릭 전환 지원.
+   - **인간적인 딜레이 & 최대 대국 수 제한**: 무작위 텀(초) 카운트다운 및 목표 판수(`max_matches`, 0=무제한) 도달 시 자동 종료.
+   - **게임 탭 상단 원클릭 ON/OFF 토글**: 오토플레이 스위치 옆에 연속 대국 토글 및 실시간 상태(대기 카운트다운, 매칭 중, 완료 판수) 표시.
+
+### 🎯 5. 실시간 디버거 HUD & AI 추천 확률 표시
+11. **화면 가림 방지 플로팅 디버그 HUD & 십자선 마커**
+   - 파일: `src/autoplay/cdp_input.rs`, `frontend/src/routes/PlayClient.tsx`
+   - 작혼 게임 화면을 가리지 않도록 우상단/좌상단 이동 및 1줄 컴팩트(최소화) 모드를 지원하는 플로팅 디버그 HUD 제공.
+   - 클릭 지점에 2.3초간 유지되는 선명한 붉은색 Crosshair(십자 조준선) 마커 및 픽셀 로그 출력.
+   - 16:9 정규화 좌표(확인 X:13.9 Y:8.2, 한번더 X:12.0 Y:8.2, 팝업 네 X:6.9 Y:6.5) 및 단계별 밀리초 단위 딜레이 실시간 미세조정.
+12. **게임 탭 상단 헤더 AI 추천 타패별 신경망 확률(%) 표시**
+   - 파일: `frontend/src/routes/PlayClient.tsx`
+   - 게임 탭 상단 헤더의 AI 추천 영역에서 1순위(최선책) 하이라이트 배지 및 2·3순위(차선책) 후보에 대해 신경망 소프트맥스 확률(%)을 함께 노출 (`1m (Dahai) 88.5%`, `2m 8.4%` 등).
 
 ---
 

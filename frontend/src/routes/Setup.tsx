@@ -567,12 +567,9 @@ function ChromiumConfigStep({
       await invoke<string>('download_chrome_for_testing', {
         channel: chromium.cft_channel || 'stable',
       })
-      // Explicit download in the wizard = explicit opt-in to CfT.
-      // Without this, a user who has both system Chrome and a freshly
-      // downloaded CfT would still launch the system Chrome (system
-      // takes priority unless force_cft is on), which is exactly what
-      // the "Download" button was meant to override.
-      setChromium({ force_cft: true })
+      // Keep force_cft = false by default so system Chrome takes priority
+      // (avoids the "Chrome for Testing is only for automated testing" banner).
+      setChromium({ force_cft: false })
       await refresh()
     } catch {
       /* surfaced via notify */

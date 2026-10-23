@@ -46,7 +46,11 @@ pub fn spawn(exe: &Path, profile: &Path, cfg: &ChromiumConfig) -> Result<Spawned
     }
     cmd.arg("--no-first-run")
         .arg("--no-default-browser-check")
-        .arg("--disable-features=TranslateUI,InterestFeedContentSuggestions")
+        .arg("--disable-background-timer-throttling")
+        .arg("--disable-backgrounding-occluded-windows")
+        .arg("--disable-renderer-backgrounding")
+        .arg("--disable-ipc-flooding-protection")
+        .arg("--disable-features=TranslateUI,InterestFeedContentSuggestions,CalculateNativeWinOcclusion,IntensiveWakeUpThrottling")
         .arg("--disable-search-engine-choice-screen")
         .arg("--disable-component-update")
         .arg("--disable-background-networking")
@@ -57,11 +61,18 @@ pub fn spawn(exe: &Path, profile: &Path, cfg: &ChromiumConfig) -> Result<Spawned
         // Chromium occasionally crashes on Linux when /dev/shm is small (e.g. Docker).
         cmd.arg("--disable-dev-shm-usage");
     }
+    let mut has_custom_app = false;
     for extra in &cfg.extra_args {
+        if extra.starts_with("--disable-features=") {
+            continue;
+        }
+        if extra.starts_with("--app=") {
+            has_custom_app = true;
+        }
         cmd.arg(extra);
     }
-    if !cfg.start_url.is_empty() {
-        cmd.arg(&cfg.start_url);
+    if !cfg.start_url.is_empty() && !has_custom_app {
+        cmd.arg(format!("--app={}", cfg.start_url));
     }
     // Stale port file from a previous run would confuse the polling read.
     let port_file = profile.join(DEVTOOLS_FILE);

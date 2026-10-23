@@ -1508,7 +1508,7 @@ impl Bridge for MajsoulBridge {
     fn parse(&mut self, direction: Direction, content: &[u8]) -> ParseResult {
         use crate::schema::ParsedFrame;
         match self.parser.parse(content) {
-            Ok(msg) => {
+            Ok(Some(msg)) => {
                 let kind = match msg.msg_type {
                     MessageType::Notify => "NOTIFY",
                     MessageType::Request => "REQUEST",
@@ -1547,7 +1547,36 @@ impl Bridge for MajsoulBridge {
                         "payload": msg.payload.clone(),
                     }),
                 });
-                let events = self.dispatch(&msg);
+                let mut events = self.dispatch(&msg);
+
+                // If any early responses were redeemed by this request, dispatch them immediately!
+                for ready_resp in self.parser.drain_ready_responses() {
+                    let id_str = ready_resp
+                        .msg_id
+                        .map(|i| format!("#{i}"))
+                        .unwrap_or_else(|| "-".into());
+                    info!(
+                        target: "akagi::bridge::majsoul",
+                        "{} RESPONSE {id_str} {} {}",
+                        Direction::Down.as_str(),
+                        ready_resp.method_name,
+                        ready_resp.payload
+                    );
+                    if let Some(log) = &self.flow_log {
+                        let line = json!({
+                            "ts": Local::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+                            "dir": Direction::Down.as_str(),
+                            "type": "RESPONSE",
+                            "msg_id": ready_resp.msg_id,
+                            "method": ready_resp.method_name.as_ref(),
+                            "payload": ready_resp.payload,
+                        });
+                        log.writeln(&line.to_string());
+                    }
+                    let resp_events = self.dispatch(&ready_resp);
+                    events.extend(resp_events);
+                }
+
                 // Rotate before writing so the StartGame event itself lands
                 // in the freshly-opened file, not the previous game's file.
                 if events
@@ -1558,6 +1587,10 @@ impl Bridge for MajsoulBridge {
                 }
                 self.write_mjai(&events);
                 ParseResult { events, parsed }
+            }
+            Ok(None) => {
+                // Early response buffered awaiting matching request frame
+                ParseResult::empty()
             }
             Err(e) => {
                 warn!(

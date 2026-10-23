@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ExternalLink, PanelTopClose, Play, RefreshCw, RotateCcw } from 'lucide-react'
+import { Bot, ExternalLink, PanelTopClose, Play, RefreshCw, RotateCcw } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
@@ -130,6 +131,19 @@ export function PlayClient() {
     }
   }
 
+  const resyncBot = async () => {
+    if (!HAS_TAURI) return
+    setBusy(true)
+    try {
+      await invoke('resync_bot')
+      toast.success('봇 프로세스를 재시작하고 상태를 재동기화했습니다')
+    } catch (e) {
+      toast.error(`봇 재동기화 실패: ${String(e)}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const reloadGame = async () => {
     if (!HAS_TAURI) return
     setBusy(true)
@@ -216,6 +230,18 @@ export function PlayClient() {
               onCheckedChange={(v) => void toggleAutoplay(v)}
             />
           </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs px-2.5 gap-1 border-primary/40 text-primary hover:bg-primary/10"
+            onClick={() => void resyncBot()}
+            disabled={busy}
+            title="게임 중 멈춘 봇 프로세스를 재시작하고 대국 상태로 재동기화"
+          >
+            <Bot className="h-3.5 w-3.5" />
+            봇 다시 깨우기
+          </Button>
 
           <Button
             variant="outline"

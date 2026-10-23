@@ -309,10 +309,13 @@ mod win32 {
 
         let insets = measure_render_insets(hwnd);
         let (left_inset, top_inset, right_inset, bottom_inset) = insets;
+        // Shift the embedded window down by TOP_OFFSET px to leave extra clearance
+        // below the Akagi control bar.
+        const TOP_OFFSET: i32 = 44;
         let win_x = pt.x - left_inset;
-        let win_y = pt.y - top_inset;
+        let win_y = pt.y + TOP_OFFSET - top_inset;
         let win_w = w + left_inset + right_inset;
-        let win_h = h + top_inset + bottom_inset;
+        let win_h = (h - TOP_OFFSET).max(200) + top_inset + bottom_inset;
 
         let target = (
             visible_on_tab,
@@ -374,7 +377,8 @@ mod win32 {
             };
 
             SetWindowPos(hwnd, HWND_TOP, win_x, win_y, win_w, win_h, z_flags);
-            let rgn = CreateRectRgn(left_inset, top_inset, left_inset + w, top_inset + h);
+            let visible_h = (h - TOP_OFFSET).max(200);
+            let rgn = CreateRectRgn(left_inset, top_inset, left_inset + w, top_inset + visible_h);
             if rgn != 0 {
                 SetWindowRgn(hwnd, rgn, 1);
             }

@@ -497,9 +497,15 @@ pub async fn sync_bot_deps(name: String, force: bool, state: State<'_, AppState>
         .find(&name)
         .ok_or_else(|| format!("bot {name:?} not found"))?
         .clone();
-    let runtime = state.runtime.as_ref().ok_or_else(|| {
-        "Python runtime not available — install python3 and uv on PATH".to_string()
-    })?;
+    let runtime = match state.runtime.as_ref() {
+        Some(rt) => rt.clone(),
+        None => {
+            // Attempt to auto-download and install bundled runtime if missing
+            crate::bot::downloader::ensure_runtime_installed(Some(&state.notify_bus))
+                .await
+                .map_err(|e| format!("Python runtime download/install failed: {e:#}"))?
+        }
+    };
 
     let _guard = SyncGuard::acquire(&state.syncs_in_flight, &name)
         .await
@@ -1797,6 +1803,9 @@ macro_rules! ipc_handlers {
             $crate::ipc::commands::native_api_subscription_result,
             $crate::ipc::commands::native_api_create_checkout,
             $crate::ipc::commands::native_api_checkout_result,
+            $crate::ipc::embed::sync_embedded_browser,
+            $crate::ipc::embed::set_embedded_browser_enabled,
+            $crate::ipc::embed::reload_embedded_browser,
         ]
     };
 }

@@ -338,6 +338,9 @@ pub async fn set_active_bot(
                 "Bot {name:?}'s Python environment isn't installed yet — install or sync it before setting it active."
             ));
         }
+        if let Some(rt) = state.runtime.as_ref() {
+            crate::bot::supervisor::spawn_bot_prewarm(rt.clone(), entry.dir.clone());
+        }
     }
     {
         let mut cfg = state.config.write().await;

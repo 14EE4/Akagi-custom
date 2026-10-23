@@ -12,8 +12,8 @@ secrets/
 CLAUDE.md
 claude*.md
 *mcp.json
-AGENTS.md
 agent*.md
+!AGENTS.md
 .agents
 .codex
 
@@ -24,6 +24,10 @@ reference*.md
 # Runtime data
 ca/
 logs/
+chrome-for-testing/
+chrome-profile/
+history/
+configs/
 
 # Per-bot uv venvs and stamp files (managed by Akagi)
 mjai_bot/*/.akagi/
@@ -43,8 +47,12 @@ dist/
 runtime/*
 !runtime/.gitkeep
 
-# util
-mjai_bot/mortal*
+# util (track mjai_bot/mortal scripts & Windows libriichi .pyd, ignore >100MB weights/archives & non-Windows .so)
+mjai_bot/mortal/mortal.pth
+mjai_bot/mortal/model_policy/
+mjai_bot/mortal/libriichi/*.so
+mjai_bot/mortal/run_mortal.bat
+*.7z
 
 # Locally-built bot release artifacts
 mortal.zip

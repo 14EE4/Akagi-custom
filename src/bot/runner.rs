@@ -50,7 +50,15 @@ fn parse_notify_line(line: &str) -> Result<Option<Notification>, serde_json::Err
 /// Default per-call timeout. Mahjong turn budget is several seconds; 5 s
 /// is well above legitimate NN inference cost (Mortal ≈ 100 ms) and below
 /// any user-perceptible hang.
-const DEFAULT_REACT_TIMEOUT_MS: u64 = 5_000;
+const DEFAULT_REACT_TIMEOUT_MS: u64 = 15_000;
+
+/// Extended timeout for the very first `react()` call on a freshly spawned
+/// subprocess. Cold-starting Python + PyTorch + native DLLs (especially on
+/// Windows with Defender real-time scanning and cold disk caches) can take
+/// 10–25 s before `bot.py` finishes loading `mortal.pth` and enters its
+/// stdin loop. Once the first reply arrives, subsequent turns use
+/// [`DEFAULT_REACT_TIMEOUT_MS`].
+const DEFAULT_FIRST_REACT_TIMEOUT_MS: u64 = 30_000;
 
 /// Grace period for graceful shutdown on `reset()`. End_game is written,
 /// child usually exits within a few hundred ms; we wait this long before
@@ -84,6 +92,9 @@ pub struct SubprocessBot {
     runtime: PythonRuntime,
     actor_id: u8,
     react_timeout: std::time::Duration,
+    /// One-shot cold-start timeout used for the first `react()` call after
+    /// spawn, then cleared (`None`) so subsequent calls use `react_timeout`.
+    first_react_timeout: Option<std::time::Duration>,
     /// Forwards bot-emitted stderr notifications to the frontend. Cloned
     /// into each stderr pump, including the one spawned on `reset()`.
     notify_tx: NotifyBus,
@@ -150,6 +161,9 @@ impl SubprocessBot {
             runtime,
             actor_id,
             react_timeout: std::time::Duration::from_millis(DEFAULT_REACT_TIMEOUT_MS),
+            first_react_timeout: Some(std::time::Duration::from_millis(
+                DEFAULT_FIRST_REACT_TIMEOUT_MS,
+            )),
             notify_tx,
         })
     }
@@ -165,6 +179,7 @@ impl SubprocessBot {
     /// Override the default 5 s react timeout. Mostly for tests.
     pub fn set_react_timeout(&mut self, t: std::time::Duration) {
         self.react_timeout = t;
+        self.first_react_timeout = None;
     }
 }
 
@@ -179,14 +194,15 @@ impl BotRunner for SubprocessBot {
         self.stdin.write_all(b"\n").await.context("write newline")?;
         self.stdin.flush().await.context("flush bot stdin")?;
 
+        let timeout = self.first_react_timeout.take().unwrap_or(self.react_timeout);
         let mut buf = String::new();
-        let read = tokio::time::timeout(self.react_timeout, self.stdout.read_line(&mut buf)).await;
+        let read = tokio::time::timeout(timeout, self.stdout.read_line(&mut buf)).await;
         let n = match read {
             Ok(r) => r.context("read bot stdout")?,
             Err(_) => bail!(
                 "bot {} react() timed out after {:?}",
                 self.bot_name,
-                self.react_timeout
+                timeout
             ),
         };
         if n == 0 {
@@ -225,6 +241,7 @@ impl BotRunner for SubprocessBot {
             stdin,
             stdout,
             react_timeout,
+            first_react_timeout,
             ..
         } = new;
 
@@ -232,6 +249,7 @@ impl BotRunner for SubprocessBot {
         self.stdin = stdin;
         self.stdout = stdout;
         self.react_timeout = react_timeout;
+        self.first_react_timeout = first_react_timeout;
         Ok(())
     }
 }

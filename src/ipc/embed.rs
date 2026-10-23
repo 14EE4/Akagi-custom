@@ -96,6 +96,16 @@ mod win32 {
     pub const GWL_EXSTYLE: i32 = -20;
     pub const GWLP_HWNDPARENT: i32 = -8;
 
+    pub const WS_POPUP: u32 = 0x8000_0000;
+    pub const WS_VISIBLE: u32 = 0x1000_0000;
+    pub const WS_CLIPSIBLINGS: u32 = 0x0400_0000;
+    pub const WS_CLIPCHILDREN: u32 = 0x0200_0000;
+    pub const WS_CAPTION: u32 = 0x00C0_0000;
+    pub const WS_SYSMENU: u32 = 0x0008_0000;
+    pub const WS_THICKFRAME: u32 = 0x0004_0000;
+    pub const WS_MINIMIZEBOX: u32 = 0x0002_0000;
+    pub const WS_MAXIMIZEBOX: u32 = 0x0001_0000;
+
     pub const WS_EX_TRANSPARENT: u32 = 0x0000_0020;
     pub const WS_EX_TOOLWINDOW: u32 = 0x0000_0080;
     pub const WS_EX_APPWINDOW: u32 = 0x0004_0000;
@@ -108,6 +118,8 @@ mod win32 {
 
     pub const SW_RESTORE: i32 = 9;
 
+    pub const SWP_NOSIZE: u32 = 0x0001;
+    pub const SWP_NOMOVE: u32 = 0x0002;
     pub const SWP_NOZORDER: u32 = 0x0004;
     pub const SWP_NOACTIVATE: u32 = 0x0010;
     pub const SWP_FRAMECHANGED: u32 = 0x0020;
@@ -511,6 +523,29 @@ fn sync_impl(
                         }
                         st.orig_style = GetWindowLongW(hwnd, GWL_STYLE);
                         st.orig_exstyle = GetWindowLongW(hwnd, GWL_EXSTYLE);
+
+                        // Strip window caption, thick frame, and title bar buttons (X, minimize, maximize)
+                        // so Chrome renders without an outer window frame/title bar.
+                        let popup_style = ((st.orig_style as u32)
+                            & !(WS_CAPTION
+                                | WS_THICKFRAME
+                                | WS_MINIMIZEBOX
+                                | WS_MAXIMIZEBOX
+                                | WS_SYSMENU))
+                            | WS_POPUP
+                            | WS_VISIBLE
+                            | WS_CLIPSIBLINGS
+                            | WS_CLIPCHILDREN;
+                        SetWindowLongW(hwnd, GWL_STYLE, popup_style as i32);
+                        SetWindowPos(
+                            hwnd,
+                            HWND_TOP,
+                            0,
+                            0,
+                            0,
+                            0,
+                            SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED,
+                        );
                     }
                     st.chrome_hwnd = hwnd;
                     st.last_applied = None;

@@ -209,6 +209,7 @@ pub fn run() {
                     let handle = app.handle().clone();
                     main.on_window_event(move |event| {
                         if matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
+                            ipc::embed::detach_on_exit();
                             if let Err(e) = ipc::overlay::close(&handle) {
                                 warn!("overlay: could not close with the main window: {e}");
                             }

@@ -9,6 +9,7 @@ import { UpdateNotifier } from '@/components/UpdateNotifier'
 import { AnnouncementsDialog } from '@/components/AnnouncementsDialog'
 import { InstallBlockingOverlay } from '@/components/InstallBlockingOverlay'
 import { useTauriBridge } from '@/hooks/useTauriBridge'
+import { HAS_TAURI, invoke } from '@/lib/tauri'
 import { useSidebar } from '@/hooks/useSidebar'
 import { useUiPrefsStore } from '@/stores/uiPrefsStore'
 import { cn } from '@/lib/utils'
@@ -29,6 +30,26 @@ export default function App() {
       document.documentElement.style.fontSize = ''
     }
   }, [scale])
+
+  // When not on the `/play` route, park the embedded Chromium window off-canvas
+  // inside `main_hwnd` (keeping WS_VISIBLE and non-zero size so WebGL / LayaAir
+  // and CDP autoplay never pause).
+  useEffect(() => {
+    if (!HAS_TAURI || location.pathname === '/play') return
+    const park = () => {
+      const dpr = window.devicePixelRatio || 1
+      void invoke('sync_embedded_browser', {
+        active: false,
+        x: 0,
+        y: 0,
+        width: Math.max(960, Math.round((window.innerWidth - 100) * dpr)),
+        height: Math.max(600, Math.round((window.innerHeight - 80) * dpr)),
+      }).catch(() => {})
+    }
+    park()
+    const id = window.setInterval(park, 1000)
+    return () => window.clearInterval(id)
+  }, [location.pathname])
 
   return (
     <>

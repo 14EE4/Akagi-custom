@@ -578,6 +578,30 @@ async fn attach_page(
     page.execute(NetworkEnableParams::default())
         .await
         .context("Network.enable")?;
+    // Keep the game canvas and LayaAir loop active even when another window
+    // or another Akagi tab is in the foreground.
+    let _ = page
+        .execute(
+            chromiumoxide::cdp::browser_protocol::emulation::SetFocusEmulationEnabledParams::new(
+                true,
+            ),
+        )
+        .await;
+    const KEEP_ACTIVE_JS: &str = "(()=>{try{\
+        Object.defineProperty(document,'hidden',{get:()=>false,configurable:true});\
+        Object.defineProperty(document,'visibilityState',{get:()=>'visible',configurable:true});\
+        document.hasFocus=()=>true;\
+        window.addEventListener('blur',e=>e.stopImmediatePropagation(),true);\
+        document.addEventListener('visibilitychange',e=>e.stopImmediatePropagation(),true);\
+    }catch(_){}})()";
+    let _ = page
+        .execute(
+            chromiumoxide::cdp::browser_protocol::page::AddScriptToEvaluateOnNewDocumentParams::new(
+                KEEP_ACTIVE_JS.to_string(),
+            ),
+        )
+        .await;
+    let _ = page.evaluate(KEEP_ACTIVE_JS).await;
     // The pause listener has to exist before `Fetch.enable` arms the
     // interceptor: a request paused with no listener yet is a request nobody
     // ever continues, and the page hangs on it. The stream buffers

@@ -142,7 +142,13 @@ pub fn page_handle_cleared_by_removal(owner: Option<&str>, removed: &[String]) -
 /// Yostar mirror. `tenhou.net` and `mjv.jp` are Tenhou's portal and its
 /// game gateway respectively — Tenhou autoplay speaks on the page's own
 /// socket, so it needs the same page handle.
-const AUTOPLAY_HOST_HINTS: &[&str] = &["maj-soul.com", "mahjongsoul.com", "tenhou.net", "mjv.jp"];
+const AUTOPLAY_HOST_HINTS: &[&str] = &[
+    "maj-soul.com",
+    "mahjongsoul.com",
+    "yo-star.com",
+    "tenhou.net",
+    "mjv.jp",
+];
 
 fn is_autoplay_target_url(ws_url: &str) -> bool {
     AUTOPLAY_HOST_HINTS.iter().any(|h| ws_url.contains(h))
@@ -1234,5 +1240,15 @@ mod tests {
                 "opcode {opcode} should skip"
             );
         }
+    }
+    #[test]
+    fn autoplay_target_hints_cover_expected_hosts() {
+        assert!(is_autoplay_target_url("wss://route-6.maj-soul.com/gateway"));
+        assert!(is_autoplay_target_url("wss://gateway-hw.mahjongsoul.com/gateway"));
+        assert!(is_autoplay_target_url("wss://kr-gateway.yo-star.com/gateway"));
+        assert!(is_autoplay_target_url("https://mahjongsoul.game.yo-star.com/kr/"));
+        assert!(is_autoplay_target_url("wss://mjv.jp/"));
+        assert!(is_autoplay_target_url("https://tenhou.net/4/"));
+        assert!(!is_autoplay_target_url("https://example.com/socket"));
     }
 }

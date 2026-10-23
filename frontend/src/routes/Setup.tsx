@@ -28,6 +28,7 @@ import { MjotLogo } from '@/components/MjotBrand'
 import { NATIVE_3P, NATIVE_4P, isNativeBot } from '@/lib/nativeBots'
 import { AKAGI_GITHUB_URL, AKAGI_DISCORD_URL, openExternal } from '@/lib/external'
 import { PLATFORMS, platformInfo } from '@/lib/platforms'
+import { StartUrlField } from '@/components/StartUrlField'
 import { LANG_LABELS, SUPPORTED_LANGS, type SupportedLang } from '@/i18n'
 import type { AppConfig, BotInfo, BotSettings, DetectedBrowser, PlatformKind } from '@/types'
 
@@ -631,19 +632,11 @@ function ChromiumConfigStep({
           {busy === 'downloading' ? t('common.downloading') : t('common.download')}
         </Button>
       </div>
-      <Field
-        label={t('settings.start_url')}
-        hint={t('settings.start_url_hint', {
-          platform: t(platformInfo(draft.platform.kind).labelKey),
-          url: platformInfo(draft.platform.kind).defaultStartUrl,
-        })}
-      >
-        <Input
-          value={chromium.start_url}
-          onChange={(e) => setChromium({ start_url: e.target.value })}
-          placeholder={platformInfo(draft.platform.kind).defaultStartUrl}
-        />
-      </Field>
+      <StartUrlField
+        kind={draft.platform.kind}
+        value={chromium.start_url}
+        onChange={(url) => setChromium({ start_url: url })}
+      />
       {!ready && (
         <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
           {t('setup.chromium.warning_no_browser')}

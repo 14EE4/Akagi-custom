@@ -78,6 +78,14 @@ pub struct BotManager {
     runner: Option<Box<dyn BotRunner>>,
     /// Events seen since the last `react()` call.
     pending: Vec<MjaiEvent>,
+    /// Most recent `start_game` event for the in-progress game, retained so
+    /// an in-game runner crash/timeout can respawn and replay state without
+    /// waiting for the next match.
+    game_start_event: Option<MjaiEvent>,
+    /// Events seen in the current kyoku (from `start_kyoku` onwards), used
+    /// together with `game_start_event` to re-seed a respawned runner after
+    /// a transient `react()` failure.
+    kyoku_events: Vec<MjaiEvent>,
     /// Bot's seat in the current game; set on `start_game`.
     actor_id: Option<u8>,
     /// One-shot: drop the next own-seat bridge `reach` echo before it is
@@ -124,6 +132,8 @@ impl BotManager {
             game_num_players: 4,
             runner: None,
             pending: Vec::new(),
+            game_start_event: None,
+            kyoku_events: Vec::new(),
             actor_id: None,
             drop_next_own_reach: false,
             out_tx,
@@ -159,9 +169,7 @@ impl BotManager {
                 Ok(ev) => {
                     if let Err(e) = self.handle_tracked(ev).await {
                         error!("bot manager: {e:#}");
-                        // Tear the runner down; next start_game will respawn.
-                        self.runner = None;
-                        self.pending.clear();
+                        self.recover_runner_after_error().await;
                     }
                 }
                 Err(broadcast::error::RecvError::Lagged(n)) => {
@@ -171,6 +179,42 @@ impl BotManager {
                     info!("post-tracker bus closed; bot manager exiting");
                     return Ok(());
                 }
+            }
+        }
+    }
+
+    /// Respawn the active runner after a mid-game `react()` error/timeout and
+    /// queue the current game + kyoku events into `pending` so the next
+    /// decision point automatically catches the new runner up.
+    async fn recover_runner_after_error(&mut self) {
+        self.runner = None;
+        self.pending.clear();
+        self.drop_next_own_reach = false;
+
+        let Some(start_game) = self.game_start_event.clone() else {
+            return;
+        };
+        if self.actor_id.is_none() || self.active_name.is_empty() {
+            return;
+        }
+        info!(
+            bot = %self.active_name,
+            actor_id = ?self.actor_id,
+            replay_events = 1 + self.kyoku_events.len(),
+            "attempting in-game bot runner recovery"
+        );
+        match self.spawn_runner().await {
+            Ok(()) => {
+                self.pending.push(start_game);
+                self.pending.extend(self.kyoku_events.iter().cloned());
+                info!(
+                    bot = %self.active_name,
+                    queued_events = self.pending.len(),
+                    "bot runner respawned mid-game; queued current kyoku events for replay"
+                );
+            }
+            Err(e) => {
+                warn!(bot = %self.active_name, "in-game bot recovery failed: {e:#}");
             }
         }
     }
@@ -202,6 +246,9 @@ impl BotManager {
         ) {
             self.drop_next_own_reach = false;
         }
+        if matches!(event, MjaiEvent::StartKyoku { .. }) {
+            self.kyoku_events.clear();
+        }
         // Spawn the runner the moment we see the bot's seat in start_game.
         if let MjaiEvent::StartGame {
             id: Some(seat),
@@ -211,6 +258,8 @@ impl BotManager {
         {
             self.actor_id = Some(*seat);
             self.game_num_players = *num_players;
+            self.game_start_event = Some(event.clone());
+            self.kyoku_events.clear();
             // Pick the active bot for this game's player count, reading the
             // *current* config so a runtime model switch takes effect on the
             // next game (the manager outlives many games — a snapshot taken
@@ -262,6 +311,14 @@ impl BotManager {
         }
 
         self.pending.push(event.clone());
+        if !matches!(
+            event,
+            MjaiEvent::StartGame { .. } | MjaiEvent::EndKyoku | MjaiEvent::EndGame { .. }
+        ) {
+            self.kyoku_events.push(event.clone());
+        } else if matches!(event, MjaiEvent::EndKyoku) {
+            self.kyoku_events.clear();
+        }
 
         if !self.is_decision_point(&event, can_act) {
             return Ok(());
@@ -326,6 +383,7 @@ impl BotManager {
                                     pai: Some(pai),
                                 };
                                 did_reach_followup = true;
+                                self.kyoku_events.push(reach_ev);
                             }
                             other => warn!(
                                 "bot manager: reach follow-up returned {other:?}, not a dahai; \
@@ -379,6 +437,8 @@ impl BotManager {
             let bot = self.active_name.clone();
             self.runner = None;
             self.actor_id = None;
+            self.game_start_event = None;
+            self.kyoku_events.clear();
             self.emit_status(BotStatus::Stopped { bot });
         }
         Ok(())

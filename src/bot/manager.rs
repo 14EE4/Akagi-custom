@@ -562,12 +562,19 @@ impl BotManager {
         let runtime = match self.runtime.clone() {
             Some(rt) => rt,
             None => {
-                let msg = format!(
-                    "bot {bot_name} needs a python3+uv runtime, but none was found. \
-                     Use the built-in bot, or install a Python runtime."
-                );
-                self.fail_load(&bot_name, &msg, "No Python runtime");
-                bail!(msg);
+                match crate::bot::downloader::ensure_runtime_installed(Some(&self.notify_tx)).await {
+                    Ok(rt) => {
+                        self.runtime = Some(rt.clone());
+                        rt
+                    }
+                    Err(e) => {
+                        let msg = format!(
+                            "bot {bot_name} needs a python3+uv runtime, but auto-install failed: {e:#}"
+                        );
+                        self.fail_load(&bot_name, &msg, "No Python runtime");
+                        bail!(msg);
+                    }
+                }
             }
         };
 

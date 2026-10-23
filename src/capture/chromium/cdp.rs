@@ -591,7 +591,7 @@ async fn attach_page(
         Object.defineProperty(document,'hidden',{get:()=>false,configurable:true});\
         Object.defineProperty(document,'visibilityState',{get:()=>'visible',configurable:true});\
         document.hasFocus=()=>true;\
-        window.addEventListener('blur',e=>e.stopImmediatePropagation(),true);\
+        window.addEventListener('blur',e=>{if(e.target===window||e.target===document)e.stopImmediatePropagation();},true);\
         document.addEventListener('visibilitychange',e=>e.stopImmediatePropagation(),true);\
     }catch(_){}})()";
     let _ = page

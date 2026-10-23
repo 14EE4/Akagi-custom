@@ -1,22 +1,24 @@
 //! Win32 window embedding for the Chromium game client inside Akagi's `/play` tab.
 //!
-//! Why embed at the OS window level (`SetParent` + `SetWindowRgn`) instead of an
-//! `<iframe>`:
-//! - Akagi's Chromium capture and autoplay operate over CDP (`--remote-debugging-port`)
-//!   against an isolated `--user-data-dir` browser instance.
-//! - By re-parenting the controlled `Chrome_WidgetWin_1` window into Akagi's main
-//!   Tauri window (`main_hwnd`) and cropping Chrome's non-client frame/titlebar via
-//!   `SetWindowRgn` around `Chrome_RenderWidgetHostHWND`, the user gets a seamless
-//!   in-app game tab while preserving 100% of CDP WebSocket capture, session cookies,
-//!   and synthetic mouse-click autoplay.
-//! - Crucially, when the user switches to another Akagi tab (`Overview`, `Game`,
-//!   `Settings`, etc.), we **never** call `SW_HIDE` or minimize the browser window
-//!   (which would cause Windows DWM / Chromium to throttle `requestAnimationFrame`
-//!   and freeze LayaAir). Instead, the child window is parked off-canvas at
-//!   `(-width - 200, 0)` inside `main_hwnd` with `WS_VISIBLE` and its full
-//!   `(width, height)` preserved. Windows clips child windows to `main_hwnd`'s
-//!   client area (so it is invisible on screen), while Chromium continues rendering
-//!   and accepting CDP `Input.dispatchMouseEvent` clicks at full speed.
+//! Why use an **Owned Top-Level Window (`GWLP_HWNDPARENT`) + `SetWindowRgn` +
+//! Layered Alpha** instead of `SetParent` (`WS_CHILD`):
+//! - In Win32, making a cross-process `Chrome_WidgetWin_1` window (`chrome.exe`)
+//!   a `WS_CHILD` of `main_hwnd` (`akagi.exe`) prevents Windows from activating
+//!   `chrome_hwnd` (`WM_ACTIVATE` / foreground thread queue focus) when clicked,
+//!   which blocks keyboard and IME input in Mahjong Soul's login screen.
+//! - By keeping `chrome_hwnd` as a top-level window owned by `main_hwnd`
+//!   (`SetWindowLongPtrW(chrome_hwnd, GWLP_HWNDPARENT, main_hwnd)`), clicking
+//!   inside the game area natively activates `chrome_hwnd` so keyboard typing,
+//!   IME, copy/paste, and login inputs work 100% natively.
+//! - `ClientToScreen` + `SetWindowRgn` crops away Chrome's 31px `--app` title bar
+//!   and frame borders so only `Chrome_RenderWidgetHostHWND` fills the `/play`
+//!   tab area seamlessly, and moves in real time with `main_hwnd`.
+//! - When switching to another Akagi tab (`Overview`, `Game`, `Settings`, etc.)
+//!   or when `main_hwnd` is minimized, we never call `SW_HIDE` or `SW_MINIMIZE`
+//!   (which would throttle WebGL / `requestAnimationFrame`). Instead, we apply
+//!   `WS_EX_LAYERED | WS_EX_TRANSPARENT` with `alpha = 0` (100% invisible and
+//!   click-through), keeping `WS_VISIBLE` and full dimensions so background
+//!   CDP autoplay never stops.
 
 use crate::config::CaptureMode;
 use crate::ipc::state::AppState;
@@ -25,7 +27,7 @@ use std::path::Path;
 use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager, State};
-use tracing::{debug, info};
+use tracing::info;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EmbeddedBrowserStatus {
@@ -36,28 +38,32 @@ pub struct EmbeddedBrowserStatus {
 
 struct EmbedInternalState {
     enabled: bool,
+    main_hwnd: isize,
     chrome_hwnd: isize,
     orig_style: i32,
     orig_exstyle: i32,
     orig_rect: (i32, i32, i32, i32),
-    last_applied: Option<(bool, i32, i32, i32, i32, (i32, i32, i32, i32))>,
+    last_client_rect: (i32, i32, i32, i32),
+    last_active: bool,
+    last_applied: Option<(bool, bool, i32, i32, i32, i32, (i32, i32, i32, i32))>,
     settle_ticks_remaining: u8,
     last_pid_scan: Option<Instant>,
-    last_known_size: (i32, i32),
 }
 
 impl Default for EmbedInternalState {
     fn default() -> Self {
         Self {
             enabled: true,
+            main_hwnd: 0,
             chrome_hwnd: 0,
             orig_style: 0,
             orig_exstyle: 0,
             orig_rect: (100, 100, 1280, 760),
+            last_client_rect: (0, 44, 1280, 720),
+            last_active: false,
             last_applied: None,
             settle_ticks_remaining: 0,
             last_pid_scan: None,
-            last_known_size: (1280, 720),
         }
     }
 }
@@ -79,28 +85,34 @@ mod win32 {
         pub bottom: i32,
     }
 
+    #[repr(C)]
+    #[derive(Clone, Copy, Debug, Default)]
+    pub struct POINT {
+        pub x: i32,
+        pub y: i32,
+    }
+
     pub const GWL_STYLE: i32 = -16;
     pub const GWL_EXSTYLE: i32 = -20;
+    pub const GWLP_HWNDPARENT: i32 = -8;
 
-    pub const WS_POPUP: u32 = 0x8000_0000;
-    pub const WS_CHILD: u32 = 0x4000_0000;
-    pub const WS_VISIBLE: u32 = 0x1000_0000;
-    pub const WS_CLIPSIBLINGS: u32 = 0x0400_0000;
-    pub const WS_CLIPCHILDREN: u32 = 0x0200_0000;
-    pub const WS_CAPTION: u32 = 0x00C0_0000;
-    pub const WS_SYSMENU: u32 = 0x0008_0000;
-    pub const WS_THICKFRAME: u32 = 0x0004_0000;
-    pub const WS_MINIMIZEBOX: u32 = 0x0002_0000;
-    pub const WS_MAXIMIZEBOX: u32 = 0x0001_0000;
+    pub const WS_EX_TRANSPARENT: u32 = 0x0000_0020;
+    pub const WS_EX_TOOLWINDOW: u32 = 0x0000_0080;
+    pub const WS_EX_APPWINDOW: u32 = 0x0004_0000;
+    pub const WS_EX_LAYERED: u32 = 0x0008_0000;
+    pub const WS_EX_NOACTIVATE: u32 = 0x0800_0000;
+
+    pub const LWA_ALPHA: u32 = 0x0000_0002;
 
     pub const HWND_TOP: isize = 0;
-    pub const HWND_BOTTOM: isize = 1;
 
     pub const SW_RESTORE: i32 = 9;
 
+    pub const SWP_NOZORDER: u32 = 0x0004;
     pub const SWP_NOACTIVATE: u32 = 0x0010;
     pub const SWP_FRAMECHANGED: u32 = 0x0020;
     pub const SWP_SHOWWINDOW: u32 = 0x0040;
+    pub const SWP_NOOWNERZORDER: u32 = 0x0200;
 
     #[link(name = "user32")]
     extern "system" {
@@ -109,9 +121,17 @@ mod win32 {
         pub fn IsIconic(hWnd: isize) -> i32;
         pub fn IsZoomed(hWnd: isize) -> i32;
         pub fn ShowWindow(hWnd: isize, nCmdShow: i32) -> i32;
-        pub fn SetParent(hWndChild: isize, hWndNewParent: isize) -> isize;
+        pub fn GetForegroundWindow() -> isize;
+        pub fn ClientToScreen(hWnd: isize, lpPoint: *mut POINT) -> i32;
         pub fn GetWindowLongW(hWnd: isize, nIndex: i32) -> i32;
         pub fn SetWindowLongW(hWnd: isize, nIndex: i32, dwNewLong: i32) -> i32;
+        pub fn SetWindowLongPtrW(hWnd: isize, nIndex: i32, dwNewLong: isize) -> isize;
+        pub fn SetLayeredWindowAttributes(
+            hwnd: isize,
+            crKey: u32,
+            bAlpha: u8,
+            dwFlags: u32,
+        ) -> i32;
         pub fn GetWindowRect(hWnd: isize, lpRect: *mut RECT) -> i32;
         pub fn SetWindowPos(
             hWnd: isize,
@@ -242,27 +262,117 @@ mod win32 {
         (8, 31, 7, 7)
     }
 
-    extern "system" fn enum_prepare_siblings_proc(hwnd: isize, lparam: isize) -> i32 {
-        let skip_hwnd = lparam;
-        if hwnd != skip_hwnd {
-            unsafe {
-                let style = GetWindowLongW(hwnd, GWL_STYLE) as u32;
-                if (style & WS_CLIPSIBLINGS) == 0 {
-                    SetWindowLongW(hwnd, GWL_STYLE, (style | WS_CLIPSIBLINGS) as i32);
-                }
-            }
+    pub fn apply_window_placement(st: &mut super::EmbedInternalState, force: bool) -> bool {
+        let main_hwnd = st.main_hwnd;
+        let hwnd = st.chrome_hwnd;
+        if main_hwnd == 0 || hwnd == 0 {
+            return false;
         }
-        1
-    }
-
-    pub fn prepare_parent_and_siblings(main_hwnd: isize, chrome_hwnd: isize) {
         unsafe {
-            let main_style = GetWindowLongW(main_hwnd, GWL_STYLE) as u32;
-            if (main_style & WS_CLIPCHILDREN) == 0 {
-                SetWindowLongW(main_hwnd, GWL_STYLE, (main_style | WS_CLIPCHILDREN) as i32);
+            if IsWindow(hwnd) == 0 {
+                st.chrome_hwnd = 0;
+                st.last_applied = None;
+                return false;
             }
-            EnumChildWindows(main_hwnd, enum_prepare_siblings_proc, chrome_hwnd);
+            if IsZoomed(hwnd) != 0 || IsIconic(hwnd) != 0 {
+                ShowWindow(hwnd, SW_RESTORE);
+            }
         }
+
+        let host_minimized = unsafe { IsIconic(main_hwnd) != 0 };
+        let visible_on_tab = st.last_active && !host_minimized;
+
+        let (cx, cy, cw, ch) = st.last_client_rect;
+        let w = cw.max(640);
+        let h = ch.max(360);
+
+        let mut pt = POINT { x: cx, y: cy };
+        if !host_minimized {
+            unsafe {
+                ClientToScreen(main_hwnd, &mut pt);
+            }
+        } else {
+            pt = POINT { x: 100, y: 100 };
+        }
+
+        let insets = measure_render_insets(hwnd);
+        let (left_inset, top_inset, right_inset, bottom_inset) = insets;
+        let win_x = pt.x - left_inset;
+        let win_y = pt.y - top_inset;
+        let win_w = w + left_inset + right_inset;
+        let win_h = h + top_inset + bottom_inset;
+
+        let target = (
+            visible_on_tab,
+            host_minimized,
+            win_x,
+            win_y,
+            win_w,
+            win_h,
+            insets,
+        );
+        let mut size_changed = false;
+        if let Some((_, _, _, _, prev_w, prev_h, _)) = st.last_applied {
+            if prev_w != win_w || prev_h != win_h {
+                size_changed = true;
+            }
+        } else {
+            size_changed = true;
+        }
+
+        if !force && st.last_applied == Some(target) && st.settle_ticks_remaining == 0 {
+            return false;
+        }
+        if st.settle_ticks_remaining > 0 {
+            st.settle_ticks_remaining -= 1;
+        }
+
+        unsafe {
+            let base_ex = (st.orig_exstyle as u32) & !WS_EX_APPWINDOW;
+            if visible_on_tab {
+                // Owned by main_hwnd so it stays directly above main_hwnd,
+                // opaque and fully interactive (native keyboard & IME focus).
+                SetWindowLongPtrW(hwnd, GWLP_HWNDPARENT, main_hwnd);
+                let ex = (base_ex | WS_EX_LAYERED | WS_EX_TOOLWINDOW)
+                    & !(WS_EX_TRANSPARENT | WS_EX_NOACTIVATE);
+                SetWindowLongW(hwnd, GWL_EXSTYLE, ex as i32);
+                SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
+            } else {
+                // When user is on another Akagi tab or Akagi is minimized:
+                // keep WS_VISIBLE and full size so WebGL / LayaAir / CDP autoplay
+                // never throttle, but make the window 100% transparent and
+                // click-through.
+                if host_minimized {
+                    SetWindowLongPtrW(hwnd, GWLP_HWNDPARENT, 0);
+                } else {
+                    SetWindowLongPtrW(hwnd, GWLP_HWNDPARENT, main_hwnd);
+                }
+                let ex =
+                    base_ex | WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE;
+                SetWindowLongW(hwnd, GWL_EXSTYLE, ex as i32);
+                SetLayeredWindowAttributes(hwnd, 0, 0, LWA_ALPHA);
+            }
+
+            let fg = GetForegroundWindow();
+            let our_app_fg = fg == main_hwnd || fg == hwnd;
+            let z_flags = if visible_on_tab && our_app_fg {
+                SWP_NOACTIVATE | SWP_SHOWWINDOW | SWP_NOOWNERZORDER
+            } else {
+                SWP_NOZORDER | SWP_NOACTIVATE | SWP_SHOWWINDOW | SWP_NOOWNERZORDER
+            };
+
+            SetWindowPos(hwnd, HWND_TOP, win_x, win_y, win_w, win_h, z_flags);
+            let rgn = CreateRectRgn(left_inset, top_inset, left_inset + w, top_inset + h);
+            if rgn != 0 {
+                SetWindowRgn(hwnd, rgn, 1);
+            }
+        }
+
+        st.last_applied = Some(target);
+        tracing::debug!(
+            "embed: placed hwnd={hwnd} visible={visible_on_tab} pos=({win_x},{win_y}) size=({win_w}x{win_h}) insets={insets:?}"
+        );
+        size_changed
     }
 
     pub fn detach_window(st: &mut super::EmbedInternalState) {
@@ -278,13 +388,14 @@ mod win32 {
                 return;
             }
             SetWindowRgn(hwnd, 0, 1);
-            SetParent(hwnd, 0);
+            SetWindowLongPtrW(hwnd, GWLP_HWNDPARENT, 0);
             if st.orig_style != 0 {
                 SetWindowLongW(hwnd, GWL_STYLE, st.orig_style);
             }
             if st.orig_exstyle != 0 {
                 SetWindowLongW(hwnd, GWL_EXSTYLE, st.orig_exstyle);
             }
+            SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
             let (ox, oy, ow, oh) = st.orig_rect;
             let w = ow.max(1100);
             let h = oh.max(720);
@@ -299,6 +410,19 @@ mod win32 {
             );
         }
         tracing::info!("embed: detached chromium window hwnd={hwnd} back to desktop");
+    }
+}
+
+/// Called from `main.on_window_event` when the main Akagi window moves or resizes
+/// so the owned game window follows with zero latency.
+pub fn on_host_window_moved() {
+    #[cfg(windows)]
+    {
+        if let Ok(mut st) = EMBED_STATE.lock() {
+            if st.enabled && st.chrome_hwnd != 0 {
+                let _ = win32::apply_window_placement(&mut st, false);
+            }
+        }
     }
 }
 
@@ -339,8 +463,10 @@ fn sync_impl(
         }
     };
 
+    st.main_hwnd = main_hwnd;
+    st.last_active = active;
     if width >= 320 && height >= 240 {
-        st.last_known_size = (width, height);
+        st.last_client_rect = (x, y, width, height);
     }
 
     if !st.enabled || !capture_is_chromium {
@@ -385,22 +511,6 @@ fn sync_impl(
                         }
                         st.orig_style = GetWindowLongW(hwnd, GWL_STYLE);
                         st.orig_exstyle = GetWindowLongW(hwnd, GWL_EXSTYLE);
-
-                        prepare_parent_and_siblings(main_hwnd, hwnd);
-
-                        let new_style = ((st.orig_style as u32)
-                            & !(WS_POPUP
-                                | WS_CAPTION
-                                | WS_THICKFRAME
-                                | WS_MINIMIZEBOX
-                                | WS_MAXIMIZEBOX
-                                | WS_SYSMENU))
-                            | WS_CHILD
-                            | WS_VISIBLE
-                            | WS_CLIPCHILDREN
-                            | WS_CLIPSIBLINGS;
-                        SetWindowLongW(hwnd, GWL_STYLE, new_style as i32);
-                        SetParent(hwnd, main_hwnd);
                     }
                     st.chrome_hwnd = hwnd;
                     st.last_applied = None;
@@ -412,8 +522,7 @@ fn sync_impl(
         }
     }
 
-    let hwnd = st.chrome_hwnd;
-    if hwnd == 0 {
+    if st.chrome_hwnd == 0 {
         return (
             EmbeddedBrowserStatus {
                 enabled: st.enabled,
@@ -424,59 +533,7 @@ fn sync_impl(
         );
     }
 
-    let (w, h) = if width >= 320 && height >= 240 {
-        (width, height)
-    } else {
-        st.last_known_size
-    };
-
-    let insets = measure_render_insets(hwnd);
-    let (left_inset, top_inset, right_inset, bottom_inset) = insets;
-    let win_w = w + left_inset + right_inset;
-    let win_h = h + top_inset + bottom_inset;
-    let (win_x, win_y, z_order) = if active {
-        (x - left_inset, y - top_inset, HWND_TOP)
-    } else {
-        // Park off-canvas to the left of main_hwnd's client area while keeping
-        // WS_VISIBLE and full dimensions so WebGL / LayaAir / CDP autoplay
-        // continue running at full speed without throttling.
-        (-win_w - 200, 0, HWND_BOTTOM)
-    };
-
-    let target_state = (active, win_x, win_y, win_w, win_h, insets);
-    let needs_apply = st.last_applied != Some(target_state) || st.settle_ticks_remaining > 0;
-    let mut size_changed = just_attached;
-
-    if needs_apply {
-        if let Some((_, _, _, prev_w, prev_h, _)) = st.last_applied {
-            if prev_w != win_w || prev_h != win_h {
-                size_changed = true;
-            }
-        }
-        if st.settle_ticks_remaining > 0 {
-            st.settle_ticks_remaining -= 1;
-        }
-        unsafe {
-            SetWindowPos(
-                hwnd,
-                z_order,
-                win_x,
-                win_y,
-                win_w,
-                win_h,
-                SWP_NOACTIVATE | SWP_SHOWWINDOW,
-            );
-            let rgn = CreateRectRgn(left_inset, top_inset, left_inset + w, top_inset + h);
-            if rgn != 0 {
-                SetWindowRgn(hwnd, rgn, 1);
-            }
-        }
-        st.last_applied = Some(target_state);
-        debug!(
-            "embed: synced hwnd={hwnd} active={active} pos=({win_x},{win_y}) size=({win_w}x{win_h}) insets={insets:?}"
-        );
-    }
-
+    let size_changed = apply_window_placement(&mut st, just_attached) || just_attached;
     (
         EmbeddedBrowserStatus {
             enabled: st.enabled,
@@ -561,7 +618,7 @@ pub async fn set_embedded_browser_enabled(
         }
     }
     *state.autoplay_context.canvas_rect.write().await = None;
-    sync_embedded_browser(enabled, 0, 0, 1280, 720, app, state).await
+    sync_embedded_browser(enabled, 0, 44, 1280, 720, app, state).await
 }
 
 #[tauri::command]

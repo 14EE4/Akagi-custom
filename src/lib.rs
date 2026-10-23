@@ -208,11 +208,17 @@ pub fn run() {
                 if let Some(main) = app.get_webview_window("main") {
                     let handle = app.handle().clone();
                     main.on_window_event(move |event| {
-                        if matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
-                            ipc::embed::detach_on_exit();
-                            if let Err(e) = ipc::overlay::close(&handle) {
-                                warn!("overlay: could not close with the main window: {e}");
+                        match event {
+                            tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_) => {
+                                ipc::embed::on_host_window_moved();
                             }
+                            tauri::WindowEvent::CloseRequested { .. } => {
+                                ipc::embed::detach_on_exit();
+                                if let Err(e) = ipc::overlay::close(&handle) {
+                                    warn!("overlay: could not close with the main window: {e}");
+                                }
+                            }
+                            _ => {}
                         }
                     });
                 }

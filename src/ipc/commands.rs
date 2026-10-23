@@ -1797,6 +1797,9 @@ macro_rules! ipc_handlers {
             $crate::ipc::commands::native_api_subscription_result,
             $crate::ipc::commands::native_api_create_checkout,
             $crate::ipc::commands::native_api_checkout_result,
+            $crate::ipc::embed::sync_embedded_browser,
+            $crate::ipc::embed::set_embedded_browser_enabled,
+            $crate::ipc::embed::reload_embedded_browser,
         ]
     };
 }

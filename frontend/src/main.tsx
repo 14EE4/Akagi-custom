@@ -7,6 +7,7 @@ import './i18n'
 import './stores/themeStore'
 import App from './App.tsx'
 import { Overview } from '@/routes/Overview'
+import { PlayClient } from '@/routes/PlayClient'
 import { GameDashboard } from '@/routes/GameDashboard'
 import { Bots } from '@/routes/Bots'
 import { History } from '@/routes/History'
@@ -42,6 +43,7 @@ const router = createHashRouter([
     loader: requireFirstRunCompleted,
     children: [
       { index: true, element: <Overview /> },
+      { path: 'play', element: <PlayClient /> },
       { path: 'game', element: <GameDashboard /> },
       { path: 'bots', element: <Bots /> },
       { path: 'history', element: <History /> },

@@ -36,7 +36,7 @@ use tokio::sync::{broadcast::error::RecvError, Mutex, RwLock};
 use tracing::{debug, info, warn};
 
 /// How long before a cached `CanvasRect` is treated as stale and re-queried.
-const CANVAS_RECT_TTL: Duration = Duration::from_secs(30);
+const CANVAS_RECT_TTL: Duration = Duration::from_millis(500);
 
 pub struct AutoplayManager {
     cfg: Arc<RwLock<AppConfig>>,
@@ -430,9 +430,12 @@ impl AutoplayManager {
                     }
                 }
                 Step::Click { x_norm, y_norm } => {
-                    let Some(rect) = rect else {
-                        warn!("autoplay: click step with no canvas rect; skipping");
-                        continue;
+                    let rect = match self.canvas_rect_resolve().await.or(rect) {
+                        Some(r) => r,
+                        None => {
+                            warn!("autoplay: click step with no canvas rect; skipping");
+                            continue;
+                        }
                     };
                     // The decision window can close while we sleep: a
                     // higher-priority claimant (ron over our chi window)

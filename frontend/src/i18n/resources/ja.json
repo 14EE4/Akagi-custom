@@ -6,7 +6,8 @@
     "logs": "ログ",
     "history": "履歴",
     "review": "検討",
-    "settings": "設定"
+    "settings": "設定",
+    "play": "?? (Play)"
   },
   "history": {
     "title": "対局履歴",

@@ -258,6 +258,8 @@ pub fn run() {
                     let inspector = state.log_session.inspector();
                     let rt = runtime.clone();
                     let syncs = state.syncs_in_flight.clone();
+                    let (bot_tx, bot_rx) = tokio::sync::mpsc::channel(16);
+                    *state.bot_control.blocking_lock() = Some(bot_tx);
                     state
                         .bot_manager_started
                         .store(true, std::sync::atomic::Ordering::SeqCst);
@@ -271,6 +273,7 @@ pub fn run() {
                             inspector,
                             rt,
                             syncs,
+                            Some(bot_rx),
                         )
                         .await
                         {

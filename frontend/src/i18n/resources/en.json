@@ -820,7 +820,14 @@
     "tenhou_desc": "tenhou.net — yonma + sanma",
     "riichi_city": "Riichi City",
     "riichi_city_desc": "Native client — MITM only · yonma + sanma",
-    "mjai": "mjai"
+    "mjai": "mjai",
+    "server_region": "Server / Region",
+    "majsoul_preset_jp": "Japan (JP)",
+    "majsoul_preset_kr": "Global / Korea (KR)",
+    "majsoul_preset_en": "Global / English (EN)",
+    "majsoul_preset_cn": "China (CN)",
+    "tenhou_preset_web4": "Web /4/ (HTML5)",
+    "tenhou_preset_web3": "Web /3/"
   },
   "updates": {
     "toast": {

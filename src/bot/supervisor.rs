@@ -100,6 +100,7 @@ pub async fn run_bot_manager(
     inspector: InspectorWriter,
     runtime: Option<PythonRuntime>,
     syncs_in_flight: Arc<Mutex<HashSet<String>>>,
+    control_rx: Option<tokio::sync::mpsc::Receiver<crate::bot::BotControlMsg>>,
 ) -> Result<()> {
     let bot_dir = {
         let cfg = config.read().await;
@@ -158,5 +159,5 @@ pub async fn run_bot_manager(
         syncs_in_flight,
     );
     let rx = events.subscribe();
-    manager.run(rx).await
+    manager.run(rx, control_rx).await
 }

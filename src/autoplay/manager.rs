@@ -109,7 +109,12 @@ impl AutoplayManager {
     }
 
     /// Run forever. Returns `Err` only on bus closure (process exit).
-    pub async fn run(mut self, response_bus: BotResponseBus) -> anyhow::Result<()> {
+    pub async fn run(
+        mut self,
+        response_bus: BotResponseBus,
+        auto_queue_status: Arc<RwLock<crate::schema::AutoQueueStatus>>,
+        auto_queue_status_bus: crate::event_bus::AutoQueueStatusBus,
+    ) -> anyhow::Result<()> {
         let mut bot_rx = response_bus.subscribe();
         let mut mjai_rx = self.mjai_bus.subscribe();
         info!("autoplay manager started");
@@ -124,6 +129,23 @@ impl AutoplayManager {
                 advance_cfg,
                 advance_inject,
                 advance_bus,
+            )
+            .await;
+        });
+
+        // The auto-queue watcher: automatically queues next match after match end.
+        let aq_cfg = self.cfg.clone();
+        let aq_ctx = self.ctx.clone();
+        let aq_bus = self.mjai_bus.clone();
+        let aq_notify = self.notify.clone();
+        tauri::async_runtime::spawn(async move {
+            crate::autoplay::auto_queue::auto_queue_watcher(
+                aq_cfg,
+                aq_ctx,
+                aq_bus,
+                aq_notify,
+                auto_queue_status,
+                auto_queue_status_bus,
             )
             .await;
         });
@@ -1171,9 +1193,11 @@ pub async fn run_autoplay_manager(
     response_bus: BotResponseBus,
     notify: NotifyBus,
     config_dir: std::path::PathBuf,
+    auto_queue_status: Arc<RwLock<crate::schema::AutoQueueStatus>>,
+    auto_queue_status_bus: crate::event_bus::AutoQueueStatusBus,
 ) -> anyhow::Result<()> {
     AutoplayManager::new(cfg, ctx, tracker, mjai_bus, notify, config_dir)
-        .run(response_bus)
+        .run(response_bus, auto_queue_status, auto_queue_status_bus)
         .await
 }
 

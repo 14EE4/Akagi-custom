@@ -20,7 +20,7 @@ use crate::ipc::capture_supervisor::{
 use crate::ipc::overlay;
 use crate::ipc::state::AppState;
 use crate::schema::{
-    BotInfo, BotSettings, GameRecord, HistoryEvent, HistoryEventLog, HistoryFilter, HoraScoreInfo,
+    AutoQueueStatus, BotInfo, BotSettings, GameRecord, HistoryEvent, HistoryEventLog, HistoryFilter, HoraScoreInfo,
     InspectorEntry, LogEntry, LogSessionInfo, Notification, ReadInspectorRequest,
     ReadInspectorResponse, ReadLogRequest, ReadLogResponse, Snapshot,
 };
@@ -101,9 +101,22 @@ pub async fn update_config(
     let platform_changed = prev_platform != new_config.platform.kind;
     let new_platform = new_config.platform.kind;
     let bot_now_enabled = new_config.bot.enabled;
-    let autoplay_now_enabled = new_config.autoplay.enabled;
+    let autoplay_now_enabled = new_config.autoplay.enabled || new_config.autoplay.auto_queue.enabled;
     let new_overlay = new_config.overlay.clone();
-    *state.config.write().await = new_config;
+    *state.config.write().await = new_config.clone();
+
+    // Sync auto-queue status snapshot
+    {
+        let mut st = state.auto_queue_status.write().await;
+        st.enabled = new_config.autoplay.auto_queue.enabled;
+        st.max_matches = new_config.autoplay.auto_queue.max_matches;
+        if !st.enabled {
+            st.current_matches = 0;
+            st.state = "idle".into();
+            st.wait_seconds_left = None;
+        }
+        let _ = state.auto_queue_status_bus.send(st.clone());
+    }
 
     // Open / close / retune the overlay window to match what was just saved.
     overlay::reconcile(&app, &new_overlay);
@@ -188,6 +201,8 @@ pub async fn update_config(
             .map(std::path::Path::to_path_buf)
             .unwrap_or_default();
         let started_flag = state.autoplay_manager_started.clone();
+        let aq_status = state.auto_queue_status.clone();
+        let aq_bus = state.auto_queue_status_bus.clone();
         tauri::async_runtime::spawn(async move {
             if let Err(e) = crate::autoplay::run_autoplay_manager(
                 cfg_for_ap,
@@ -197,6 +212,8 @@ pub async fn update_config(
                 resp_for_ap,
                 notify_for_ap,
                 config_dir_for_ap,
+                aq_status,
+                aq_bus,
             )
             .await
             {
@@ -1749,6 +1766,229 @@ fn persist_config(config: &AppConfig, path: &Path) -> std::io::Result<()> {
 /// Pre-builds the handler list for `tauri::generate_handler!`. Keep in
 /// sync when adding commands.
 #[tauri::command]
+pub async fn get_auto_queue_status(state: State<'_, AppState>) -> CmdResult<AutoQueueStatus> {
+    Ok(state.auto_queue_status.read().await.clone())
+}
+
+#[tauri::command]
+pub async fn set_auto_queue_enabled(
+    enabled: bool,
+    state: State<'_, AppState>,
+) -> CmdResult<()> {
+    let cfg = {
+        let mut cfg = state.config.write().await;
+        cfg.autoplay.auto_queue.enabled = enabled;
+        cfg.clone()
+    };
+    persist_config(&cfg, &state.config_path).map_err(|e| e.to_string())?;
+
+    {
+        let mut st = state.auto_queue_status.write().await;
+        st.enabled = enabled;
+        if !enabled {
+            st.current_matches = 0;
+            st.state = "idle".into();
+            st.wait_seconds_left = None;
+        }
+        let _ = state.auto_queue_status_bus.send(st.clone());
+    }
+
+    if claim_autoplay_manager_spawn(
+        cfg.autoplay.enabled || cfg.autoplay.auto_queue.enabled,
+        &state.autoplay_manager_started,
+    ) {
+        let cfg_for_ap = state.config.clone();
+        let ctx_for_ap = state.autoplay_context.clone();
+        let tracker_for_ap = state.game_tracker.clone();
+        let mjai_for_ap = state.mjai_bus.clone();
+        let resp_for_ap = state.bot_response_bus.clone();
+        let notify_for_ap = state.notify_bus.clone();
+        let config_dir_for_ap = state
+            .config_path
+            .parent()
+            .map(std::path::Path::to_path_buf)
+            .unwrap_or_default();
+        let aq_status = state.auto_queue_status.clone();
+        let aq_bus = state.auto_queue_status_bus.clone();
+        let started_flag = state.autoplay_manager_started.clone();
+        tauri::async_runtime::spawn(async move {
+            if let Err(e) = crate::autoplay::run_autoplay_manager(
+                cfg_for_ap,
+                ctx_for_ap,
+                tracker_for_ap,
+                mjai_for_ap,
+                resp_for_ap,
+                notify_for_ap,
+                config_dir_for_ap,
+                aq_status,
+                aq_bus,
+            )
+            .await
+            {
+                tracing::error!("Autoplay manager failed: {e:#}");
+                started_flag.store(false, std::sync::atomic::Ordering::SeqCst);
+            }
+        });
+    }
+
+    Ok(())
+}
+
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TestClickResult {
+    pub success: bool,
+    pub px: f64,
+    pub py: f64,
+    pub canvas_width: f64,
+    pub canvas_height: f64,
+    pub message: String,
+}
+
+#[tauri::command]
+pub async fn test_click_canvas(
+    x_norm: f64,
+    y_norm: f64,
+    label: Option<String>,
+    state: State<'_, AppState>,
+) -> CmdResult<TestClickResult> {
+    let lbl = label.unwrap_or_else(|| "클릭 테스트".to_string());
+    match crate::autoplay::auto_queue::execute_click_with_indicator(
+        &state.autoplay_context,
+        x_norm,
+        y_norm,
+        &lbl,
+        true,
+    )
+    .await
+    {
+        Ok((px, py, cw, ch)) => Ok(TestClickResult {
+            success: true,
+            px,
+            py,
+            canvas_width: cw,
+            canvas_height: ch,
+            message: format!("성공: ({x_norm:.2}, {y_norm:.2}) -> 실제 픽셀 ({px:.1}px, {py:.1}px), 캔버스 {cw:.0}x{ch:.0}"),
+        }),
+        Err(e) => Ok(TestClickResult {
+            success: false,
+            px: 0.0,
+            py: 0.0,
+            canvas_width: 0.0,
+            canvas_height: 0.0,
+            message: format!("실패: {e}"),
+        }),
+    }
+}
+
+#[tauri::command]
+pub async fn test_auto_queue_step(
+    step: String,
+    state: State<'_, AppState>,
+) -> CmdResult<String> {
+    let aq = {
+        let guard = state.config.read().await;
+        guard.autoplay.auto_queue.clone()
+    };
+    match step.as_str() {
+        "confirm" => {
+            let res = crate::autoplay::auto_queue::execute_click_with_indicator(
+                &state.autoplay_context,
+                aq.confirm_x,
+                aq.confirm_y,
+                "확인 테스트",
+                true,
+            ).await;
+            match res {
+                Ok((px, py, ..)) => Ok(format!("'확인' 클릭 성공 ({:.2}, {:.2}) -> 실제 픽셀 ({:.0}px, {:.0}px)", aq.confirm_x, aq.confirm_y, px, py)),
+                Err(e) => Err(e),
+            }
+        }
+        "rematch" => {
+            let res = crate::autoplay::auto_queue::execute_click_with_indicator(
+                &state.autoplay_context,
+                aq.rematch_x,
+                aq.rematch_y,
+                "한번더 테스트",
+                true,
+            ).await;
+            match res {
+                Ok((px, py, ..)) => Ok(format!("'한번더' 클릭 성공 ({:.2}, {:.2}) -> 실제 픽셀 ({:.0}px, {:.0}px)", aq.rematch_x, aq.rematch_y, px, py)),
+                Err(e) => Err(e),
+            }
+        }
+        "modal_yes" => {
+            let res = crate::autoplay::auto_queue::execute_click_with_indicator(
+                &state.autoplay_context,
+                aq.modal_yes_x,
+                aq.modal_yes_y,
+                "네 테스트",
+                true,
+            ).await;
+            match res {
+                Ok((px, py, ..)) => Ok(format!("'네' 클릭 성공 ({:.2}, {:.2}) -> 실제 픽셀 ({:.0}px, {:.0}px)", aq.modal_yes_x, aq.modal_yes_y, px, py)),
+                Err(e) => Err(e),
+            }
+        }
+        "full_sequence" => {
+            let ctx = state.autoplay_context.clone();
+            let notify = state.notify_bus.clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = notify.send(crate::schema::Notification {
+                    level: crate::schema::NotifyLevel::Info,
+                    title: "시퀀스 테스트 시작".into(),
+                    body: Some(format!("확인 {}회 -> 한번더 -> 네 시뮬레이션을 시작합니다.", aq.confirm_clicks)),
+                    sticky: false,
+                    id: Some("auto-queue-sim".into()),
+                });
+
+                // 초기 연출 대기
+                tokio::time::sleep(std::time::Duration::from_millis(aq.initial_delay_ms as u64)).await;
+
+                for i in 1..=aq.confirm_clicks {
+                    let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
+                        &ctx,
+                        aq.confirm_x,
+                        aq.confirm_y,
+                        &format!("확인 ({i}/{})", aq.confirm_clicks),
+                        true,
+                    ).await;
+                    tokio::time::sleep(std::time::Duration::from_millis(aq.confirm_delay_ms as u64)).await;
+                }
+
+                tokio::time::sleep(std::time::Duration::from_millis(aq.rematch_delay_ms as u64)).await;
+                let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
+                    &ctx,
+                    aq.rematch_x,
+                    aq.rematch_y,
+                    "한번더 (재전)",
+                    true,
+                ).await;
+
+                tokio::time::sleep(std::time::Duration::from_millis(aq.modal_delay_ms as u64)).await;
+                let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
+                    &ctx,
+                    aq.modal_yes_x,
+                    aq.modal_yes_y,
+                    "네 (확인)",
+                    true,
+                ).await;
+
+                let _ = notify.send(crate::schema::Notification {
+                    level: crate::schema::NotifyLevel::Success,
+                    title: "시퀀스 테스트 완료".into(),
+                    body: Some("전체 클릭 시뮬레이션이 성공적으로 완료되었습니다.".into()),
+                    sticky: false,
+                    id: Some("auto-queue-sim".into()),
+                });
+            });
+            Ok("전체 시퀀스 시뮬레이션이 백그라운드에서 시작되었습니다.".into())
+        }
+        other => Err(format!("알 수 없는 테스트 단계: {other}")),
+    }
+}
+
+#[tauri::command]
 pub async fn resync_bot(state: State<'_, AppState>) -> CmdResult<()> {
     tracing::info!("resync_bot command invoked from UI");
     let guard = state.bot_control.lock().await;
@@ -1782,6 +2022,10 @@ macro_rules! ipc_handlers {
             $crate::ipc::commands::stop_capture,
             $crate::ipc::commands::restart_capture,
             $crate::ipc::commands::resync_bot,
+            $crate::ipc::commands::get_auto_queue_status,
+            $crate::ipc::commands::set_auto_queue_enabled,
+            $crate::ipc::commands::test_click_canvas,
+            $crate::ipc::commands::test_auto_queue_step,
             $crate::ipc::commands::get_capture_status,
             $crate::ipc::commands::detect_system_chrome,
             $crate::ipc::commands::list_cft_installed,

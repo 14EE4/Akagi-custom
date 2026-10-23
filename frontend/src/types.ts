@@ -144,10 +144,47 @@ export type DelayModelConfig = {
   no_budget_cap_ms: number
 }
 
+export type AutoQueueConfig = {
+  enabled: boolean
+  max_matches: number
+  min_delay_sec: number
+  max_delay_sec: number
+  initial_delay_ms?: number
+  confirm_clicks?: number
+  confirm_delay_ms?: number
+  confirm_x?: number
+  confirm_y?: number
+  rematch_delay_ms?: number
+  rematch_x?: number
+  rematch_y?: number
+  modal_delay_ms?: number
+  modal_yes_x?: number
+  modal_yes_y?: number
+  show_click_indicator?: boolean
+}
+
+export type TestClickResult = {
+  success: boolean
+  px: number
+  py: number
+  canvas_width: number
+  canvas_height: number
+  message: string
+}
+
+export type AutoQueueStatus = {
+  enabled: boolean
+  current_matches: number
+  max_matches: number
+  state: 'idle' | 'waiting' | 'queuing'
+  wait_seconds_left?: number | null
+}
+
 export type AutoplayConfig = {
   enabled: boolean
   majsoul: MajsoulAutoplayConfig
   delay: DelayModelConfig
+  auto_queue?: AutoQueueConfig
 }
 
 /** Optional cloud-inference settings for the built-in native bot.

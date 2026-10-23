@@ -57,6 +57,7 @@
 //!
 //! Entry point: [`manager::run_autoplay_manager`].
 
+pub mod auto_queue;
 pub mod budget;
 pub mod cdp_input;
 pub mod context;

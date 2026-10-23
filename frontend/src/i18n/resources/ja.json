@@ -820,7 +820,14 @@
     "tenhou_desc": "tenhou.net — 四麻 + 三麻",
     "riichi_city": "麻雀一番街",
     "riichi_city_desc": "ネイティブアプリ — MITM のみ · 四麻 + 三麻",
-    "mjai": "mjai"
+    "mjai": "mjai",
+    "server_region": "サーバー / 地域",
+    "majsoul_preset_jp": "日本サーバー (JP)",
+    "majsoul_preset_kr": "グローバル / 韓国 (KR)",
+    "majsoul_preset_en": "グローバル / 英語 (EN)",
+    "majsoul_preset_cn": "中国サーバー (CN)",
+    "tenhou_preset_web4": "Web /4/ (HTML5)",
+    "tenhou_preset_web3": "Web /3/"
   },
   "updates": {
     "toast": {

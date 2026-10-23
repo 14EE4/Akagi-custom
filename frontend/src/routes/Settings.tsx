@@ -51,6 +51,7 @@ import {
   isKnownDefaultStartUrl,
   platformInfo,
 } from '@/lib/platforms'
+import { StartUrlField } from '@/components/StartUrlField'
 import {
   OVERLAY_OPACITY_MAX,
   OVERLAY_OPACITY_MIN,
@@ -1262,19 +1263,11 @@ function CaptureCard({
                 placeholder={t('common.default')}
               />
             </Field>
-            <Field
-              label={t('settings.start_url')}
-              hint={t('settings.start_url_hint', {
-                platform: t(platformInfo(draft.platform.kind).labelKey),
-                url: platformInfo(draft.platform.kind).defaultStartUrl,
-              })}
-            >
-              <Input
-                value={chromium.start_url}
-                onChange={(e) => setChromium({ start_url: e.target.value })}
-                placeholder={platformInfo(draft.platform.kind).defaultStartUrl}
-              />
-            </Field>
+            <StartUrlField
+              kind={draft.platform.kind}
+              value={chromium.start_url}
+              onChange={(url) => setChromium({ start_url: url })}
+            />
             <Toggle
               label={t('settings.block_telemetry')}
               value={chromium.block_telemetry}

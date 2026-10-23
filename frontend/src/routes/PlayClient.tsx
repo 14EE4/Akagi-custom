@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Bot, ExternalLink, PanelTopClose, Play, RefreshCw, RotateCcw, Settings2 } from 'lucide-react'
+import { Bot, Crosshair, ExternalLink, PanelTopClose, Play, RefreshCw, RotateCcw, Settings2 } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { useAutoQueueStore } from '@/stores/autoQueueStore'
@@ -32,11 +32,28 @@ export function PlayClient() {
   const [busy, setBusy] = useState(false)
   const autoQueueStatus = useAutoQueueStore((s) => s.status)
   const [autoQueueDialogOpen, setAutoQueueDialogOpen] = useState(false)
+  const [autoQueueDebugOpen, setAutoQueueDebugOpen] = useState(false)
+  const [debugLogs, setDebugLogs] = useState<string[]>([])
   const [aqDraft, setAqDraft] = useState({
     max_matches: 0,
     min_delay_sec: 8,
     max_delay_sec: 15,
+    confirm_clicks: 3,
+    confirm_delay_ms: 2400,
+    confirm_x: 13.9,
+    confirm_y: 8.2,
+    rematch_x: 11.2,
+    rematch_y: 8.2,
+    modal_delay_ms: 1500,
+    modal_yes_x: 6.9,
+    modal_yes_y: 5.9,
+    show_click_indicator: true,
   })
+
+  const appendDebugLog = (msg: string) => {
+    const time = new Date().toLocaleTimeString()
+    setDebugLogs((prev) => [`[${time}] ${msg}`, ...prev.slice(0, 19)])
+  }
 
   const openAutoQueueDialog = () => {
     const currentAq = config?.autoplay?.auto_queue
@@ -44,9 +61,77 @@ export function PlayClient() {
       max_matches: currentAq?.max_matches ?? 0,
       min_delay_sec: currentAq?.min_delay_sec ?? 8,
       max_delay_sec: currentAq?.max_delay_sec ?? 15,
+      confirm_clicks: currentAq?.confirm_clicks ?? 3,
+      confirm_delay_ms: currentAq?.confirm_delay_ms ?? 2400,
+      confirm_x: currentAq?.confirm_x ?? 13.9,
+      confirm_y: currentAq?.confirm_y ?? 8.2,
+      rematch_x: currentAq?.rematch_x ?? 11.2,
+      rematch_y: currentAq?.rematch_y ?? 8.2,
+      modal_delay_ms: currentAq?.modal_delay_ms ?? 1500,
+      modal_yes_x: currentAq?.modal_yes_x ?? 6.9,
+      modal_yes_y: currentAq?.modal_yes_y ?? 5.9,
+      show_click_indicator: currentAq?.show_click_indicator ?? true,
     })
     setAutoQueueDialogOpen(true)
   }
+
+  const openAutoQueueDebugModal = () => {
+    const currentAq = config?.autoplay?.auto_queue
+    setAqDraft({
+      max_matches: currentAq?.max_matches ?? 0,
+      min_delay_sec: currentAq?.min_delay_sec ?? 8,
+      max_delay_sec: currentAq?.max_delay_sec ?? 15,
+      confirm_clicks: currentAq?.confirm_clicks ?? 3,
+      confirm_delay_ms: currentAq?.confirm_delay_ms ?? 2400,
+      confirm_x: currentAq?.confirm_x ?? 13.9,
+      confirm_y: currentAq?.confirm_y ?? 8.2,
+      rematch_x: currentAq?.rematch_x ?? 11.2,
+      rematch_y: currentAq?.rematch_y ?? 8.2,
+      modal_delay_ms: currentAq?.modal_delay_ms ?? 1500,
+      modal_yes_x: currentAq?.modal_yes_x ?? 6.9,
+      modal_yes_y: currentAq?.modal_yes_y ?? 5.9,
+      show_click_indicator: currentAq?.show_click_indicator ?? true,
+    })
+    setAutoQueueDebugOpen(true)
+  }
+
+  const testSingleClick = async (xNorm: number, yNorm: number, label: string) => {
+    if (!HAS_TAURI) return
+    try {
+      const res = await invoke<{
+        success: boolean
+        px: number
+        py: number
+        canvas_width: number
+        canvas_height: number
+        message: string
+      }>('test_click_canvas', { xNorm, yNorm, label })
+      appendDebugLog(res.message)
+      if (res.success) {
+        toast.success(`[${label}] 클릭 성공: ${res.px.toFixed(0)}px, ${res.py.toFixed(0)}px`)
+      } else {
+        toast.error(`[${label}] 클릭 실패: ${res.message}`)
+      }
+    } catch (e: any) {
+      const msg = e?.message || String(e)
+      appendDebugLog(`오류: ${msg}`)
+      toast.error(`클릭 실패: ${msg}`)
+    }
+  }
+
+  const testStep = async (step: string) => {
+    if (!HAS_TAURI) return
+    try {
+      const res = await invoke<string>('test_auto_queue_step', { step })
+      appendDebugLog(`[${step}] ${res}`)
+      toast.success(res)
+    } catch (e: any) {
+      const msg = e?.message || String(e)
+      appendDebugLog(`[${step}] 오류: ${msg}`)
+      toast.error(`실패: ${msg}`)
+    }
+  }
+
 
   const saveAutoQueueSettings = async () => {
     if (!HAS_TAURI || !config) return
@@ -61,9 +146,7 @@ export function PlayClient() {
             min_delay_sec: 8,
             max_delay_sec: 15,
           }),
-          max_matches: aqDraft.max_matches,
-          min_delay_sec: aqDraft.min_delay_sec,
-          max_delay_sec: aqDraft.max_delay_sec,
+          ...aqDraft,
         },
       },
     }
@@ -345,9 +428,17 @@ export function PlayClient() {
               type="button"
               className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded"
               onClick={openAutoQueueDialog}
-              title="자동 연속 대국 상세 설정 (최대 대국 수, 대기 시간)"
+              title="자동 연속 대국 설정 (최대 대국 수, 대기 시간)"
             >
               <Settings2 className="h-3 w-3" />
+            </button>
+            <button
+              type="button"
+              className="text-muted-foreground hover:text-primary transition-colors p-0.5 rounded"
+              onClick={openAutoQueueDebugModal}
+              title="클릭 위치/시간 실시간 디버그 & 테스트"
+            >
+              <Crosshair className="h-3.5 w-3.5" />
             </button>
           </div>
 
@@ -513,6 +604,239 @@ export function PlayClient() {
             </Button>
             <Button size="sm" onClick={() => void saveAutoQueueSettings()}>
               저장
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Auto Queue Position & Timing Debugger Dialog */}
+      <Dialog open={autoQueueDebugOpen} onOpenChange={setAutoQueueDebugOpen}>
+        <DialogContent className="sm:max-w-[540px] max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Crosshair className="h-4 w-4 text-primary" />
+              자동 대국 클릭 위치 & 딜레이 디버거
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              화면 상의 각 버튼 위치(16:9 정규화 좌표)를 테스트하고 클릭 시 화면에 나타나는 붉은색 마커를 확인하세요.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto pr-1 space-y-4 text-xs">
+            {/* Quick action buttons */}
+            <div className="p-2.5 rounded-lg bg-muted/40 border border-border/60 space-y-2">
+              <span className="font-semibold text-foreground flex items-center justify-between">
+                <span>즉시 위치 테스트 (클릭 시 화면에 빨간 점 표시)</span>
+              </span>
+              <div className="grid grid-cols-3 gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-[11px] px-2 flex items-center gap-1 border-primary/30"
+                  onClick={() => void testSingleClick(aqDraft.confirm_x, aqDraft.confirm_y, '확인')}
+                >
+                  <Crosshair className="h-3 w-3 text-primary" />
+                  1. 확인 ({aqDraft.confirm_x}, {aqDraft.confirm_y})
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-[11px] px-2 flex items-center gap-1 border-primary/30"
+                  onClick={() => void testSingleClick(aqDraft.rematch_x, aqDraft.rematch_y, '한번더')}
+                >
+                  <Crosshair className="h-3 w-3 text-primary" />
+                  2. 한번더 ({aqDraft.rematch_x}, {aqDraft.rematch_y})
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-[11px] px-2 flex items-center gap-1 border-primary/30"
+                  onClick={() => void testSingleClick(aqDraft.modal_yes_x, aqDraft.modal_yes_y, '네')}
+                >
+                  <Crosshair className="h-3 w-3 text-primary" />
+                  3. 팝업 '네' ({aqDraft.modal_yes_x}, {aqDraft.modal_yes_y})
+                </Button>
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="w-full h-8 text-xs font-semibold gap-1.5"
+                onClick={() => void testStep('full_sequence')}
+              >
+                <Play className="h-3 w-3" />
+                전체 시퀀스 시뮬레이션 실행 (확인 {aqDraft.confirm_clicks}회 → 한번더 → 네)
+              </Button>
+            </div>
+
+            {/* Coordinates & Timings Fine-Tuning */}
+            <div className="space-y-3 p-2.5 rounded-lg bg-card border border-border/60">
+              <span className="font-semibold text-foreground">좌표 및 딜레이 미세조정</span>
+              
+              {/* Step 1: Confirm button */}
+              <div className="grid grid-cols-4 gap-2 items-center">
+                <div className="col-span-1">
+                  <Label className="text-[11px]">확인 횟수 / 딜레이</Label>
+                  <div className="flex gap-1 mt-1">
+                    <Input
+                      type="number"
+                      min={1}
+                      max={10}
+                      className="h-7 text-xs"
+                      value={aqDraft.confirm_clicks}
+                      onChange={(e) => setAqDraft({ ...aqDraft, confirm_clicks: Math.max(1, parseInt(e.target.value || '1', 10)) })}
+                    />
+                    <Input
+                      type="number"
+                      step={100}
+                      className="h-7 text-xs"
+                      value={aqDraft.confirm_delay_ms}
+                      onChange={(e) => setAqDraft({ ...aqDraft, confirm_delay_ms: Math.max(500, parseInt(e.target.value || '1000', 10)) })}
+                      title="확인 클릭 간 딜레이 (ms)"
+                    />
+                  </div>
+                </div>
+                <div className="col-span-3">
+                  <Label className="text-[11px]">확인 버튼 좌표 (X: 0~16, Y: 0~9)</Label>
+                  <div className="flex gap-2 items-center mt-1">
+                    <span className="text-[11px] text-muted-foreground">X:</span>
+                    <Input
+                      type="number"
+                      step={0.1}
+                      className="h-7 text-xs w-20"
+                      value={aqDraft.confirm_x}
+                      onChange={(e) => setAqDraft({ ...aqDraft, confirm_x: parseFloat(e.target.value || '0') })}
+                    />
+                    <span className="text-[11px] text-muted-foreground">Y:</span>
+                    <Input
+                      type="number"
+                      step={0.1}
+                      className="h-7 text-xs w-20"
+                      value={aqDraft.confirm_y}
+                      onChange={(e) => setAqDraft({ ...aqDraft, confirm_y: parseFloat(e.target.value || '0') })}
+                    />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-xs text-primary"
+                      onClick={() => void testSingleClick(aqDraft.confirm_x, aqDraft.confirm_y, '확인')}
+                    >
+                      테스트
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 2: Rematch button */}
+              <div className="grid grid-cols-4 gap-2 items-center pt-2 border-t border-border/40">
+                <div className="col-span-1">
+                  <Label className="text-[11px]">한번더 버튼</Label>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">우하단 우측 2번째</p>
+                </div>
+                <div className="col-span-3">
+                  <div className="flex gap-2 items-center">
+                    <span className="text-[11px] text-muted-foreground">X:</span>
+                    <Input
+                      type="number"
+                      step={0.1}
+                      className="h-7 text-xs w-20"
+                      value={aqDraft.rematch_x}
+                      onChange={(e) => setAqDraft({ ...aqDraft, rematch_x: parseFloat(e.target.value || '0') })}
+                    />
+                    <span className="text-[11px] text-muted-foreground">Y:</span>
+                    <Input
+                      type="number"
+                      step={0.1}
+                      className="h-7 text-xs w-20"
+                      value={aqDraft.rematch_y}
+                      onChange={(e) => setAqDraft({ ...aqDraft, rematch_y: parseFloat(e.target.value || '0') })}
+                    />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-xs text-primary"
+                      onClick={() => void testSingleClick(aqDraft.rematch_x, aqDraft.rematch_y, '한번더')}
+                    >
+                      테스트
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 3: Modal Yes button */}
+              <div className="grid grid-cols-4 gap-2 items-center pt-2 border-t border-border/40">
+                <div className="col-span-1">
+                  <Label className="text-[11px]">팝업 대기 / '네'</Label>
+                  <Input
+                    type="number"
+                    step={100}
+                    className="h-7 text-xs mt-1"
+                    value={aqDraft.modal_delay_ms}
+                    onChange={(e) => setAqDraft({ ...aqDraft, modal_delay_ms: Math.max(500, parseInt(e.target.value || '1000', 10)) })}
+                    title="팝업 대기 시간 (ms)"
+                  />
+                </div>
+                <div className="col-span-3">
+                  <Label className="text-[11px]">팝업 '네' 버튼 좌표</Label>
+                  <div className="flex gap-2 items-center mt-1">
+                    <span className="text-[11px] text-muted-foreground">X:</span>
+                    <Input
+                      type="number"
+                      step={0.1}
+                      className="h-7 text-xs w-20"
+                      value={aqDraft.modal_yes_x}
+                      onChange={(e) => setAqDraft({ ...aqDraft, modal_yes_x: parseFloat(e.target.value || '0') })}
+                    />
+                    <span className="text-[11px] text-muted-foreground">Y:</span>
+                    <Input
+                      type="number"
+                      step={0.1}
+                      className="h-7 text-xs w-20"
+                      value={aqDraft.modal_yes_y}
+                      onChange={(e) => setAqDraft({ ...aqDraft, modal_yes_y: parseFloat(e.target.value || '0') })}
+                    />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-xs text-primary"
+                      onClick={() => void testSingleClick(aqDraft.modal_yes_x, aqDraft.modal_yes_y, '네')}
+                    >
+                      테스트
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t border-border/40">
+                <Label htmlFor="aq-show-marker" className="text-xs cursor-pointer">
+                  클릭 시 화면에 붉은색 위치 마커 표시
+                </Label>
+                <Switch
+                  id="aq-show-marker"
+                  checked={aqDraft.show_click_indicator}
+                  onCheckedChange={(v) => setAqDraft({ ...aqDraft, show_click_indicator: v })}
+                />
+              </div>
+            </div>
+
+            {/* Live Logs */}
+            <div className="space-y-1.5">
+              <span className="font-semibold text-foreground text-[11px]">디버그 실행 로그</span>
+              <div className="h-24 rounded bg-black/80 text-emerald-400 p-2 font-mono text-[10px] overflow-y-auto space-y-0.5 border border-border/40">
+                {debugLogs.length === 0 ? (
+                  <span className="text-muted-foreground/60">위 버튼을 클릭하여 위치 테스트를 진행하세요.</span>
+                ) : (
+                  debugLogs.map((log, idx) => <div key={idx}>{log}</div>)
+                )}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="mt-2">
+            <Button variant="outline" size="sm" onClick={() => setAutoQueueDebugOpen(false)}>
+              닫기
+            </Button>
+            <Button size="sm" onClick={() => void saveAutoQueueSettings()}>
+              설정 저장
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -149,6 +149,25 @@ export type AutoQueueConfig = {
   max_matches: number
   min_delay_sec: number
   max_delay_sec: number
+  confirm_clicks?: number
+  confirm_delay_ms?: number
+  confirm_x?: number
+  confirm_y?: number
+  rematch_x?: number
+  rematch_y?: number
+  modal_delay_ms?: number
+  modal_yes_x?: number
+  modal_yes_y?: number
+  show_click_indicator?: boolean
+}
+
+export type TestClickResult = {
+  success: boolean
+  px: number
+  py: number
+  canvas_width: number
+  canvas_height: number
+  message: string
 }
 
 export type AutoQueueStatus = {

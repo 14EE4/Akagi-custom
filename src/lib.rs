@@ -110,7 +110,7 @@ pub fn run() {
 
     let bot_enabled = cfg.bot.enabled;
     let proxy_enabled = cfg.proxy.enabled;
-    let autoplay_enabled = cfg.autoplay.enabled;
+    let autoplay_enabled = cfg.autoplay.enabled || cfg.autoplay.auto_queue.enabled;
     let overlay_cfg = cfg.overlay.clone();
 
     // Game-state tracker handle is built up front so AppState can carry
@@ -299,6 +299,8 @@ pub fn run() {
                     state
                         .autoplay_manager_started
                         .store(true, std::sync::atomic::Ordering::SeqCst);
+                    let aq_status = state.auto_queue_status.clone();
+                    let aq_bus = state.auto_queue_status_bus.clone();
                     tauri::async_runtime::spawn(async move {
                         if let Err(e) = autoplay::run_autoplay_manager(
                             cfg_for_ap,
@@ -308,6 +310,8 @@ pub fn run() {
                             resp_for_ap,
                             notify_for_ap,
                             config_dir_for_ap,
+                            aq_status,
+                            aq_bus,
                         )
                         .await
                         {

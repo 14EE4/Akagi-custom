@@ -864,6 +864,17 @@ function AutoplayCard({
       ...draft,
       autoplay: { ...ap, delay: { ...delay, ...patch } },
     })
+  const aq = ap.auto_queue ?? {
+    enabled: false,
+    max_matches: 0,
+    min_delay_sec: 8,
+    max_delay_sec: 15,
+  }
+  const setAutoQueueField = (patch: Partial<typeof aq>) =>
+    setDraft({
+      ...draft,
+      autoplay: { ...ap, auto_queue: { ...aq, ...patch } },
+    })
   return (
     <Card>
       <CardHeader>
@@ -1084,6 +1095,69 @@ function AutoplayCard({
         <p className="text-xs text-muted-foreground">
           {t('settings.autoplay.platform_note')}
         </p>
+        <div className="pt-4 mt-2 border-t border-border/60">
+          <h4 className="text-sm font-semibold mb-3">{t('settings.autoplay.auto_queue_title')}</h4>
+          <div className="grid gap-4">
+            <Toggle
+              label={t('settings.autoplay.auto_queue_enable')}
+              value={aq.enabled}
+              onChange={(v) => setAutoQueueField({ enabled: v })}
+            />
+            <p className="text-xs text-muted-foreground">
+              {t('settings.autoplay.auto_queue_enable_help')}
+            </p>
+            <Field
+              label={t('settings.autoplay.auto_queue_max_matches')}
+              hint={t('settings.autoplay.auto_queue_max_matches_hint')}
+            >
+              <Input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                value={aq.max_matches}
+                onChange={(e) =>
+                  setAutoQueueField({
+                    max_matches: Math.max(0, parseInt(e.target.value || '0', 10)),
+                  })
+                }
+              />
+            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field
+                label={t('settings.autoplay.auto_queue_min_delay_sec')}
+                hint={t('settings.autoplay.auto_queue_min_delay_sec_hint')}
+              >
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  min={3}
+                  value={aq.min_delay_sec}
+                  onChange={(e) =>
+                    setAutoQueueField({
+                      min_delay_sec: Math.max(3, parseInt(e.target.value || '3', 10)),
+                    })
+                  }
+                />
+              </Field>
+              <Field
+                label={t('settings.autoplay.auto_queue_max_delay_sec')}
+                hint={t('settings.autoplay.auto_queue_max_delay_sec_hint')}
+              >
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  min={3}
+                  value={aq.max_delay_sec}
+                  onChange={(e) =>
+                    setAutoQueueField({
+                      max_delay_sec: Math.max(3, parseInt(e.target.value || '3', 10)),
+                    })
+                  }
+                />
+              </Field>
+            </div>
+          </div>
+        </div>
       </CardContent>
     </Card>
   )

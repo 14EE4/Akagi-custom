@@ -20,14 +20,14 @@ use crate::autoplay::AutoplayContext;
 use crate::bot::PythonRuntime;
 use crate::config::AppConfig;
 use crate::event_bus::{
-    AnalysisBus, BotResponseBus, BotStatusBus, CaptureStatusBus, HistoryBus, MjaiBus, NotifyBus,
+    AnalysisBus, AutoQueueStatusBus, BotResponseBus, BotStatusBus, CaptureStatusBus, HistoryBus, MjaiBus, NotifyBus,
     PostTrackerBus,
 };
 use crate::game_state::GameTracker;
 use crate::history::recorder::SharedPlatform;
 use crate::history::HistoryStore;
 use crate::logger::Session;
-use crate::schema::{BotStatus, CaptureStatus};
+use crate::schema::{AutoQueueStatus, BotStatus, CaptureStatus};
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
@@ -77,6 +77,8 @@ pub struct AppState {
     pub notify_bus: NotifyBus,
     pub analysis_bus: AnalysisBus,
     pub history_bus: HistoryBus,
+    pub auto_queue_status_bus: AutoQueueStatusBus,
+    pub auto_queue_status: Arc<RwLock<AutoQueueStatus>>,
 
     /// Latest BotStatus seen on the bus. Forwarder writes; commands read.
     pub bot_status: Arc<RwLock<BotStatus>>,
@@ -156,7 +158,7 @@ impl AppState {
         runtime: Option<PythonRuntime>,
     ) -> Self {
         Self {
-            config: Arc::new(RwLock::new(config)),
+            config: Arc::new(RwLock::new(config.clone())),
             config_path: Arc::new(config_path),
             log_session,
             mjai_bus,
@@ -167,6 +169,12 @@ impl AppState {
             notify_bus,
             analysis_bus,
             history_bus,
+            auto_queue_status_bus: crate::event_bus::auto_queue_status_bus(),
+            auto_queue_status: Arc::new(RwLock::new(AutoQueueStatus {
+                enabled: config.autoplay.auto_queue.enabled,
+                max_matches: config.autoplay.auto_queue.max_matches,
+                ..Default::default()
+            })),
             bot_status: Arc::new(RwLock::new(BotStatus::Idle)),
             capture_control: Arc::new(Mutex::new(CaptureControl::default())),
             game_tracker,

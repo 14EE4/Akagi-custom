@@ -107,6 +107,92 @@ pub async fn dispatch_click_shaped(
 /// uses the same selector when running in browser mode. We grab the
 /// first canvas indiscriminately — multi-canvas pages aren't a thing on
 /// these platforms.
+
+/// Displays a prominent visual click ripple/marker with a crosshair and label at `(x, y)` CSS pixels on the page.
+pub async fn show_click_marker(page: &Page, x: f64, y: f64, label: &str) -> Result<()> {
+    let js = format!(
+        r#"(()=>{{
+            try {{
+                const container = document.createElement('div');
+                container.style.position = 'fixed';
+                container.style.left = '{x}px';
+                container.style.top = '{y}px';
+                container.style.width = '0px';
+                container.style.height = '0px';
+                container.style.zIndex = '2147483647';
+                container.style.pointerEvents = 'none';
+
+                // Crosshair lines
+                const hLine = document.createElement('div');
+                hLine.style.position = 'absolute';
+                hLine.style.left = '-24px';
+                hLine.style.top = '0px';
+                hLine.style.width = '48px';
+                hLine.style.height = '2px';
+                hLine.style.backgroundColor = '#ff2222';
+                hLine.style.boxShadow = '0 0 6px #ff0000';
+
+                const vLine = document.createElement('div');
+                vLine.style.position = 'absolute';
+                vLine.style.left = '0px';
+                vLine.style.top = '-24px';
+                vLine.style.width = '2px';
+                vLine.style.height = '48px';
+                vLine.style.backgroundColor = '#ff2222';
+                vLine.style.boxShadow = '0 0 6px #ff0000';
+
+                // Pulsing dot
+                const dot = document.createElement('div');
+                dot.style.position = 'absolute';
+                dot.style.left = '-14px';
+                dot.style.top = '-14px';
+                dot.style.width = '28px';
+                dot.style.height = '28px';
+                dot.style.borderRadius = '50%';
+                dot.style.backgroundColor = 'rgba(239, 68, 68, 0.45)';
+                dot.style.border = '2px solid #ffffff';
+                dot.style.boxShadow = '0 0 16px rgba(255, 0, 0, 0.9)';
+                dot.style.transform = 'scale(1)';
+                dot.style.transition = 'all 2.0s cubic-bezier(0.1, 0.8, 0.2, 1)';
+
+                if ('{label}') {{
+                    const text = document.createElement('div');
+                    text.innerText = '{label}';
+                    text.style.position = 'absolute';
+                    text.style.bottom = '18px';
+                    text.style.left = '0px';
+                    text.style.transform = 'translateX(-50%)';
+                    text.style.color = '#ffffff';
+                    text.style.fontSize = '13px';
+                    text.style.fontWeight = 'bold';
+                    text.style.textShadow = '0 1px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.9)';
+                    text.style.whiteSpace = 'nowrap';
+                    text.style.padding = '3px 8px';
+                    text.style.borderRadius = '6px';
+                    text.style.backgroundColor = 'rgba(220, 38, 38, 0.9)';
+                    text.style.border = '1px solid rgba(255, 255, 255, 0.8)';
+                    text.style.boxShadow = '0 2px 8px rgba(0,0,0,0.5)';
+                    container.appendChild(text);
+                }}
+
+                container.appendChild(hLine);
+                container.appendChild(vLine);
+                container.appendChild(dot);
+                document.body.appendChild(container);
+
+                requestAnimationFrame(() => {{
+                    dot.style.transform = 'scale(1.8)';
+                    container.style.transition = 'opacity 2.2s ease-out';
+                    container.style.opacity = '0';
+                }});
+                setTimeout(() => container.remove(), 2300);
+            }} catch (_) {{}}
+        }})()"#
+    );
+    let _ = page.evaluate(js).await;
+    Ok(())
+}
+
 pub async fn evaluate_canvas_rect(page: &Page) -> Result<CanvasRect> {
     // IIFE so `Runtime.evaluate` returns a single value, not a Promise.
     // `is_likely_js_function` in chromiumoxide picks the right CDP call

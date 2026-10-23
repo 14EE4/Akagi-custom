@@ -1,5 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Bot, ExternalLink, PanelTopClose, Play, RefreshCw, RotateCcw } from 'lucide-react'
+import {
+  ArrowLeftRight,
+  Bot,
+  Crosshair,
+  ExternalLink,
+  Minimize2,
+  Maximize2,
+  PanelTopClose,
+  Play,
+  RefreshCw,
+  RotateCcw,
+  Settings2,
+  X,
+} from 'lucide-react'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { useAutoQueueStore } from '@/stores/autoQueueStore'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -27,6 +43,169 @@ export function PlayClient() {
     browser_found: false,
   })
   const [busy, setBusy] = useState(false)
+  const autoQueueStatus = useAutoQueueStore((s) => s.status)
+  const [autoQueueDialogOpen, setAutoQueueDialogOpen] = useState(false)
+  const [autoQueueDebugOpen, setAutoQueueDebugOpen] = useState(false)
+  const [hudMinimized, setHudMinimized] = useState(false)
+  const [hudSide, setHudSide] = useState<'left' | 'right'>('right')
+  const [debugLogs, setDebugLogs] = useState<string[]>([])
+  const [aqDraft, setAqDraft] = useState({
+    max_matches: 0,
+    min_delay_sec: 8,
+    max_delay_sec: 15,
+    initial_delay_ms: 25000,
+    confirm_clicks: 2,
+    confirm_delay_ms: 5000,
+    confirm_x: 13.9,
+    confirm_y: 8.2,
+    rematch_delay_ms: 2500,
+    rematch_x: 12.0,
+    rematch_y: 8.2,
+    modal_delay_ms: 2200,
+    modal_yes_x: 6.9,
+    modal_yes_y: 6.5,
+    show_click_indicator: true,
+  })
+
+  const appendDebugLog = (msg: string) => {
+    const time = new Date().toLocaleTimeString()
+    setDebugLogs((prev) => [`[${time}] ${msg}`, ...prev.slice(0, 19)])
+  }
+
+  const openAutoQueueDialog = () => {
+    const currentAq = config?.autoplay?.auto_queue
+    setAqDraft({
+      max_matches: currentAq?.max_matches ?? 0,
+      min_delay_sec: currentAq?.min_delay_sec ?? 8,
+      max_delay_sec: currentAq?.max_delay_sec ?? 15,
+      initial_delay_ms: currentAq?.initial_delay_ms ?? 25000,
+      confirm_clicks: currentAq?.confirm_clicks ?? 2,
+      confirm_delay_ms: currentAq?.confirm_delay_ms ?? 5000,
+      confirm_x: currentAq?.confirm_x ?? 13.9,
+      confirm_y: currentAq?.confirm_y ?? 8.2,
+      rematch_delay_ms: currentAq?.rematch_delay_ms ?? 2500,
+      rematch_x: currentAq?.rematch_x ?? 12.0,
+      rematch_y: currentAq?.rematch_y ?? 8.2,
+      modal_delay_ms: currentAq?.modal_delay_ms ?? 2200,
+      modal_yes_x: currentAq?.modal_yes_x ?? 6.9,
+      modal_yes_y: currentAq?.modal_yes_y ?? 6.5,
+      show_click_indicator: currentAq?.show_click_indicator ?? true,
+    })
+    setAutoQueueDialogOpen(true)
+  }
+
+  const openAutoQueueDebugModal = () => {
+    const currentAq = config?.autoplay?.auto_queue
+    setAqDraft({
+      max_matches: currentAq?.max_matches ?? 0,
+      min_delay_sec: currentAq?.min_delay_sec ?? 8,
+      max_delay_sec: currentAq?.max_delay_sec ?? 15,
+      initial_delay_ms: currentAq?.initial_delay_ms ?? 25000,
+      confirm_clicks: currentAq?.confirm_clicks ?? 2,
+      confirm_delay_ms: currentAq?.confirm_delay_ms ?? 5000,
+      confirm_x: currentAq?.confirm_x ?? 13.9,
+      confirm_y: currentAq?.confirm_y ?? 8.2,
+      rematch_delay_ms: currentAq?.rematch_delay_ms ?? 2500,
+      rematch_x: currentAq?.rematch_x ?? 12.0,
+      rematch_y: currentAq?.rematch_y ?? 8.2,
+      modal_delay_ms: currentAq?.modal_delay_ms ?? 2200,
+      modal_yes_x: currentAq?.modal_yes_x ?? 6.9,
+      modal_yes_y: currentAq?.modal_yes_y ?? 6.5,
+      show_click_indicator: currentAq?.show_click_indicator ?? true,
+    })
+    setAutoQueueDebugOpen(true)
+  }
+
+  const testSingleClick = async (xNorm: number, yNorm: number, label: string) => {
+    if (!HAS_TAURI) return
+    try {
+      const res = await invoke<{
+        success: boolean
+        px: number
+        py: number
+        canvas_width: number
+        canvas_height: number
+        message: string
+      }>('test_click_canvas', { xNorm, yNorm, label })
+      appendDebugLog(res.message)
+      if (res.success) {
+        toast.success(`[${label}] 클릭 성공: ${res.px.toFixed(0)}px, ${res.py.toFixed(0)}px`)
+      } else {
+        toast.error(`[${label}] 클릭 실패: ${res.message}`)
+      }
+    } catch (e: any) {
+      const msg = e?.message || String(e)
+      appendDebugLog(`오류: ${msg}`)
+      toast.error(`클릭 실패: ${msg}`)
+    }
+  }
+
+  const testStep = async (step: string) => {
+    if (!HAS_TAURI) return
+    try {
+      const res = await invoke<string>('test_auto_queue_step', { step })
+      appendDebugLog(`[${step}] ${res}`)
+      toast.success(res)
+    } catch (e: any) {
+      const msg = e?.message || String(e)
+      appendDebugLog(`[${step}] 오류: ${msg}`)
+      toast.error(`실패: ${msg}`)
+    }
+  }
+
+
+  const saveAutoQueueSettings = async () => {
+    if (!HAS_TAURI || !config) return
+    const nextConfig = {
+      ...config,
+      autoplay: {
+        ...config.autoplay,
+        auto_queue: {
+          ...(config.autoplay?.auto_queue ?? {
+            enabled: false,
+            max_matches: 0,
+            min_delay_sec: 8,
+            max_delay_sec: 15,
+          }),
+          ...aqDraft,
+        },
+      },
+    }
+    setConfig(nextConfig)
+    setAutoQueueDialogOpen(false)
+    try {
+      await invoke('update_config', { newConfig: nextConfig })
+      toast.success('자동 연속 대국 설정이 저장되었습니다.')
+    } catch {
+      toast.error('설정 저장에 실패했습니다.')
+    }
+  }
+
+  const toggleAutoQueue = async (enabled: boolean) => {
+    if (!HAS_TAURI) return
+    try {
+      await invoke('set_auto_queue_enabled', { enabled })
+      if (config) {
+        setConfig({
+          ...config,
+          autoplay: {
+            ...config.autoplay,
+            auto_queue: {
+              ...(config.autoplay?.auto_queue ?? {
+                enabled: false,
+                max_matches: 0,
+                min_delay_sec: 8,
+                max_delay_sec: 15,
+              }),
+              enabled,
+            },
+          },
+        })
+      }
+    } catch {
+      /* ignore */
+    }
+  }
 
   const config = useConfigStore((s) => s.config)
   const setConfig = useConfigStore((s) => s.setConfig)
@@ -207,12 +386,25 @@ export function PlayClient() {
                   key={idx}
                   className={
                     idx === 0
-                      ? 'inline-flex items-center gap-1 rounded px-2 py-0.5 font-semibold bg-primary/15 text-primary border border-primary/30 whitespace-nowrap'
-                      : 'inline-flex items-center gap-1 rounded px-1.5 py-0.5 bg-muted text-muted-foreground whitespace-nowrap'
+                      ? 'inline-flex items-center gap-1.5 rounded px-2 py-0.5 font-semibold bg-primary/15 text-primary border border-primary/30 whitespace-nowrap shadow-xs'
+                      : 'inline-flex items-center gap-1 rounded px-1.5 py-0.5 bg-muted text-muted-foreground border border-border/40 whitespace-nowrap'
                   }
                 >
-                  <span>{item.pais?.join(' ') || item.tiles || '—'}</span>
-                  {item.label && <span className="opacity-85">({item.label})</span>}
+                  <span className={idx === 0 ? 'text-primary font-bold' : ''}>
+                    {item.pais?.join(' ') || item.tiles || '—'}
+                  </span>
+                  {item.label && <span className="opacity-75 text-[10px]">({item.label})</span>}
+                  {item.value && (
+                    <span
+                      className={
+                        idx === 0
+                          ? 'font-mono text-[11px] font-bold px-1 rounded bg-primary/20 text-primary'
+                          : 'font-mono text-[10px] font-medium text-foreground/80'
+                      }
+                    >
+                      {item.value}
+                    </span>
+                  )}
                 </span>
               ))
             )}
@@ -229,6 +421,59 @@ export function PlayClient() {
               checked={autoplayEnabled}
               onCheckedChange={(v) => void toggleAutoplay(v)}
             />
+          </div>
+
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted/50 border border-border/60">
+            <Label htmlFor="play-autoqueue-toggle" className="text-xs cursor-pointer whitespace-nowrap flex items-center gap-1">
+              <span>자동 다음 대국</span>
+              {autoQueueStatus.enabled && (
+                <span
+                  className={`text-[10px] font-semibold px-1 py-0.5 rounded cursor-pointer transition-colors ${
+                    autoQueueStatus.state === 'waiting'
+                      ? 'bg-amber-500/20 text-amber-500 border border-amber-500/40 animate-pulse'
+                      : autoQueueStatus.state === 'queuing'
+                      ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/40'
+                      : 'bg-primary/20 text-primary border border-primary/30'
+                  }`}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    openAutoQueueDialog()
+                  }}
+                  title="클릭하여 연속 대국 설정 변경"
+                >
+                  {autoQueueStatus.state === 'waiting'
+                    ? `대기 중 (${autoQueueStatus.wait_seconds_left ?? 0}s)`
+                    : autoQueueStatus.state === 'queuing'
+                    ? '매칭 중...'
+                    : autoQueueStatus.max_matches > 0
+                    ? `${autoQueueStatus.current_matches}/${autoQueueStatus.max_matches}판`
+                    : autoQueueStatus.current_matches > 0
+                    ? `${autoQueueStatus.current_matches}판 완료`
+                    : 'ON'}
+                </span>
+              )}
+            </Label>
+            <Switch
+              id="play-autoqueue-toggle"
+              checked={autoQueueStatus.enabled}
+              onCheckedChange={(v) => void toggleAutoQueue(v)}
+            />
+            <button
+              type="button"
+              className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded"
+              onClick={openAutoQueueDialog}
+              title="자동 연속 대국 설정 (최대 대국 수, 대기 시간)"
+            >
+              <Settings2 className="h-3 w-3" />
+            </button>
+            <button
+              type="button"
+              className="text-muted-foreground hover:text-primary transition-colors p-0.5 rounded"
+              onClick={openAutoQueueDebugModal}
+              title="클릭 위치/시간 실시간 디버그 & 테스트"
+            >
+              <Crosshair className="h-3.5 w-3.5" />
+            </button>
           </div>
 
           <Button
@@ -321,7 +566,457 @@ export function PlayClient() {
             </div>
           </div>
         )}
+
+        {/* Floating Non-Blocking Auto Queue Debugger HUD */}
+        {autoQueueDebugOpen && (
+          <div
+            className={`absolute top-3 ${
+              hudSide === 'right' ? 'right-3' : 'left-3'
+            } z-40 transition-all duration-200 select-none ${
+              hudMinimized ? 'w-auto' : 'w-84 max-w-[calc(100vw-2rem)]'
+            }`}
+          >
+            {hudMinimized ? (
+              /* Minimized Compact Bar (Does not block view at all) */
+              <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-background/95 backdrop-blur-md border border-border shadow-2xl text-xs">
+                <div className="flex items-center gap-1 px-1.5 font-bold text-primary text-[11px]">
+                  <Crosshair className="h-3.5 w-3.5" />
+                  <span>디버그</span>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-6 text-[10px] px-2 py-0 border-primary/40 bg-card hover:bg-primary/10"
+                  onClick={() => void testSingleClick(aqDraft.confirm_x, aqDraft.confirm_y, '확인')}
+                  title="확인 버튼 클릭 테스트"
+                >
+                  1.확인
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-6 text-[10px] px-2 py-0 border-primary/40 bg-card hover:bg-primary/10"
+                  onClick={() => void testSingleClick(aqDraft.rematch_x, aqDraft.rematch_y, '한번더')}
+                  title="한번더 버튼 클릭 테스트"
+                >
+                  2.한번더
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-6 text-[10px] px-2 py-0 border-primary/40 bg-card hover:bg-primary/10"
+                  onClick={() => void testSingleClick(aqDraft.modal_yes_x, aqDraft.modal_yes_y, '네')}
+                  title="팝업 '네' 버튼 클릭 테스트"
+                >
+                  3.네
+                </Button>
+                <div className="h-3 w-px bg-border/60 mx-0.5" />
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                  onClick={() => setHudSide(hudSide === 'right' ? 'left' : 'right')}
+                  title={hudSide === 'right' ? '좌측으로 이동' : '우측으로 이동'}
+                >
+                  <ArrowLeftRight className="h-3 w-3" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                  onClick={() => setHudMinimized(false)}
+                  title="패널 펼치기"
+                >
+                  <Maximize2 className="h-3 w-3" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                  onClick={() => setAutoQueueDebugOpen(false)}
+                  title="디버거 닫기"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ) : (
+              /* Expanded HUD Panel */
+              <div className="rounded-xl bg-background/95 backdrop-blur-md border border-border shadow-2xl p-3 text-xs flex flex-col gap-2.5 max-h-[85vh] overflow-y-auto">
+                {/* Header */}
+                <div className="flex items-center justify-between pb-1.5 border-b border-border/50">
+                  <div className="flex items-center gap-1.5 font-bold text-foreground">
+                    <Crosshair className="h-4 w-4 text-primary" />
+                    <span>자동 대국 디버그 & 위치</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                      onClick={() => setHudSide(hudSide === 'right' ? 'left' : 'right')}
+                      title={hudSide === 'right' ? '좌측으로 패널 이동' : '우측으로 패널 이동'}
+                    >
+                      <ArrowLeftRight className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                      onClick={() => setHudMinimized(true)}
+                      title="최소화 (1줄 툴바로 축소)"
+                    >
+                      <Minimize2 className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                      onClick={() => setAutoQueueDebugOpen(false)}
+                      title="닫기"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Quick 1-Click Action Buttons */}
+                <div className="grid grid-cols-3 gap-1.5">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-[11px] px-1.5 flex items-center justify-center gap-1 border-primary/40 bg-primary/5 hover:bg-primary/20"
+                    onClick={() => void testSingleClick(aqDraft.confirm_x, aqDraft.confirm_y, '확인')}
+                  >
+                    <Crosshair className="h-3 w-3 text-primary shrink-0" />
+                    1. 확인
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-[11px] px-1.5 flex items-center justify-center gap-1 border-primary/40 bg-primary/5 hover:bg-primary/20"
+                    onClick={() => void testSingleClick(aqDraft.rematch_x, aqDraft.rematch_y, '한번더')}
+                  >
+                    <Crosshair className="h-3 w-3 text-primary shrink-0" />
+                    2. 한번더
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-[11px] px-1.5 flex items-center justify-center gap-1 border-primary/40 bg-primary/5 hover:bg-primary/20"
+                    onClick={() => void testSingleClick(aqDraft.modal_yes_x, aqDraft.modal_yes_y, '네')}
+                  >
+                    <Crosshair className="h-3 w-3 text-primary shrink-0" />
+                    3. 팝업'네'
+                  </Button>
+                </div>
+
+                {/* Coordinates & Timings Fine-Tuning */}
+                <div className="space-y-2.5 p-2 rounded-lg bg-muted/40 border border-border/50 text-[11px]">
+                  {/* Step 1: Confirm */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between font-semibold text-foreground">
+                      <span>1단계 [확인] (우하단 연출 스킵)</span>
+                      <span className="text-[10px] text-primary font-bold">{aqDraft.confirm_clicks}회 클릭</span>
+                    </div>
+
+                    {/* Character Preset Quick Toggle */}
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        size="sm"
+                        variant={aqDraft.confirm_clicks === 2 ? 'default' : 'outline'}
+                        className="h-5 text-[10px] px-2 py-0 flex-1 font-semibold"
+                        onClick={() => setAqDraft({ ...aqDraft, confirm_clicks: 2 })}
+                      >
+                        일반 작사 (2회)
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={aqDraft.confirm_clicks === 3 ? 'default' : 'outline'}
+                        className="h-5 text-[10px] px-2 py-0 flex-1 font-semibold"
+                        onClick={() => setAqDraft({ ...aqDraft, confirm_clicks: 3 })}
+                      >
+                        계약 작사 (3회)
+                      </Button>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={10}
+                        className="h-5 text-[10px] w-12 px-1 text-center"
+                        value={aqDraft.confirm_clicks}
+                        onChange={(e) => setAqDraft({ ...aqDraft, confirm_clicks: Math.max(1, parseInt(e.target.value || '1', 10)) })}
+                        title="직접 확인 클릭 횟수 지정"
+                      />
+                    </div>
+
+                    {/* Delays for Step 1 */}
+                    <div className="grid grid-cols-2 gap-1.5 pt-0.5 text-[10px]">
+                      <div>
+                        <span className="text-muted-foreground">대국 종료 후 첫 대기:</span>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <Input
+                            type="number"
+                            step={100}
+                            className="h-5 text-[10px] px-1 text-center"
+                            value={aqDraft.initial_delay_ms}
+                            onChange={(e) => setAqDraft({ ...aqDraft, initial_delay_ms: Math.max(500, parseInt(e.target.value || '1000', 10)) })}
+                          />
+                          <span className="text-muted-foreground shrink-0">ms</span>
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">확인 클릭 간 딜레이:</span>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <Input
+                            type="number"
+                            step={100}
+                            className="h-5 text-[10px] px-1 text-center"
+                            value={aqDraft.confirm_delay_ms}
+                            onChange={(e) => setAqDraft({ ...aqDraft, confirm_delay_ms: Math.max(500, parseInt(e.target.value || '1000', 10)) })}
+                          />
+                          <span className="text-muted-foreground shrink-0">ms</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Coordinates for Step 1 */}
+                    <div className="flex items-center gap-1.5 pt-0.5">
+                      <span className="text-muted-foreground">X:</span>
+                      <Input
+                        type="number"
+                        step={0.1}
+                        className="h-5 text-[10px] w-14 px-1 text-center"
+                        value={aqDraft.confirm_x}
+                        onChange={(e) => setAqDraft({ ...aqDraft, confirm_x: parseFloat(e.target.value || '0') })}
+                      />
+                      <span className="text-muted-foreground">Y:</span>
+                      <Input
+                        type="number"
+                        step={0.1}
+                        className="h-5 text-[10px] w-14 px-1 text-center"
+                        value={aqDraft.confirm_y}
+                        onChange={(e) => setAqDraft({ ...aqDraft, confirm_y: parseFloat(e.target.value || '0') })}
+                      />
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="h-5 text-[10px] px-2 ml-auto"
+                        onClick={() => void testSingleClick(aqDraft.confirm_x, aqDraft.confirm_y, '확인')}
+                      >
+                        클릭
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Step 2: Rematch */}
+                  <div className="space-y-1.5 pt-2 border-t border-border/30">
+                    <div className="flex items-center justify-between font-semibold text-foreground">
+                      <span>2단계 [한번 더] (우하단 좌측 재대국)</span>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-[10px]">
+                      <span className="text-muted-foreground shrink-0">결과 화면 대기 딜레이:</span>
+                      <Input
+                        type="number"
+                        step={100}
+                        className="h-5 text-[10px] w-18 px-1 text-center"
+                        value={aqDraft.rematch_delay_ms}
+                        onChange={(e) => setAqDraft({ ...aqDraft, rematch_delay_ms: Math.max(500, parseInt(e.target.value || '1000', 10)) })}
+                      />
+                      <span className="text-muted-foreground shrink-0">ms</span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-muted-foreground">X:</span>
+                      <Input
+                        type="number"
+                        step={0.1}
+                        className="h-5 text-[10px] w-14 px-1 text-center"
+                        value={aqDraft.rematch_x}
+                        onChange={(e) => setAqDraft({ ...aqDraft, rematch_x: parseFloat(e.target.value || '0') })}
+                      />
+                      <span className="text-muted-foreground">Y:</span>
+                      <Input
+                        type="number"
+                        step={0.1}
+                        className="h-5 text-[10px] w-14 px-1 text-center"
+                        value={aqDraft.rematch_y}
+                        onChange={(e) => setAqDraft({ ...aqDraft, rematch_y: parseFloat(e.target.value || '0') })}
+                      />
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="h-5 text-[10px] px-2 ml-auto"
+                        onClick={() => void testSingleClick(aqDraft.rematch_x, aqDraft.rematch_y, '한번더')}
+                      >
+                        클릭
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Step 3: Modal Yes */}
+                  <div className="space-y-1.5 pt-2 border-t border-border/30">
+                    <div className="flex items-center justify-between font-semibold text-foreground">
+                      <span>3단계 [팝업 '네'] (화면 중앙 좌측 확인)</span>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-[10px]">
+                      <span className="text-muted-foreground shrink-0">팝업창 대기 딜레이:</span>
+                      <Input
+                        type="number"
+                        step={100}
+                        className="h-5 text-[10px] w-18 px-1 text-center"
+                        value={aqDraft.modal_delay_ms}
+                        onChange={(e) => setAqDraft({ ...aqDraft, modal_delay_ms: Math.max(500, parseInt(e.target.value || '1000', 10)) })}
+                      />
+                      <span className="text-muted-foreground shrink-0">ms</span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-muted-foreground">X:</span>
+                      <Input
+                        type="number"
+                        step={0.1}
+                        className="h-5 text-[10px] w-14 px-1 text-center"
+                        value={aqDraft.modal_yes_x}
+                        onChange={(e) => setAqDraft({ ...aqDraft, modal_yes_x: parseFloat(e.target.value || '0') })}
+                      />
+                      <span className="text-muted-foreground">Y:</span>
+                      <Input
+                        type="number"
+                        step={0.1}
+                        className="h-5 text-[10px] w-14 px-1 text-center"
+                        value={aqDraft.modal_yes_y}
+                        onChange={(e) => setAqDraft({ ...aqDraft, modal_yes_y: parseFloat(e.target.value || '0') })}
+                      />
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="h-5 text-[10px] px-2 ml-auto"
+                        onClick={() => void testSingleClick(aqDraft.modal_yes_x, aqDraft.modal_yes_y, '네')}
+                      >
+                        클릭
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Simulation Button */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full h-7 text-xs font-semibold gap-1.5 border-primary/40 bg-primary/5 hover:bg-primary/20"
+                  onClick={() => void testStep('full_sequence')}
+                >
+                  <Play className="h-3 w-3 text-primary" />
+                  전체 시퀀스 시뮬레이션 ({aqDraft.confirm_clicks}회 → 한번더 → 네)
+                </Button>
+
+                {/* Live Compact Log */}
+                <div className="rounded bg-black/85 text-emerald-400 p-1.5 font-mono text-[10px] h-16 overflow-y-auto space-y-0.5 border border-border/40">
+                  {debugLogs.length === 0 ? (
+                    <span className="text-muted-foreground/60">버튼을 클릭하면 좌표 로그가 출력됩니다.</span>
+                  ) : (
+                    debugLogs.map((log, idx) => <div key={idx}>{log}</div>)
+                  )}
+                </div>
+
+                {/* Save and Controls */}
+                <div className="flex items-center justify-between pt-1">
+                  <div className="flex items-center gap-1.5">
+                    <Switch
+                      id="hud-marker-switch"
+                      checked={aqDraft.show_click_indicator}
+                      onCheckedChange={(v) => setAqDraft({ ...aqDraft, show_click_indicator: v })}
+                      className="scale-75"
+                    />
+                    <Label htmlFor="hud-marker-switch" className="text-[11px] cursor-pointer">
+                      붉은 마커 표시
+                    </Label>
+                  </div>
+                  <Button size="sm" className="h-7 text-xs px-3 font-semibold" onClick={() => void saveAutoQueueSettings()}>
+                    설정 저장
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Auto Queue Quick Settings Dialog */}
+      <Dialog open={autoQueueDialogOpen} onOpenChange={setAutoQueueDialogOpen}>
+        <DialogContent className="sm:max-w-[380px]">
+          <DialogHeader>
+            <DialogTitle>자동 연속 대국 설정 (Auto Queue)</DialogTitle>
+            <DialogDescription>
+              대국 종료 후 인간적인 무작위 텀을 두고 자동으로 재전(동일 룰 대국)을 진행합니다.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-2 text-xs">
+            <div className="grid gap-1.5">
+              <Label htmlFor="aq-max-matches">최대 대국 수 (0 = 무제한)</Label>
+              <Input
+                id="aq-max-matches"
+                type="number"
+                min={0}
+                value={aqDraft.max_matches}
+                onChange={(e) =>
+                  setAqDraft({
+                    ...aqDraft,
+                    max_matches: Math.max(0, parseInt(e.target.value || '0', 10)),
+                  })
+                }
+              />
+              <p className="text-[11px] text-muted-foreground">
+                설정한 판수를 마치면 자동으로 연속 대국이 종료됩니다.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label htmlFor="aq-min-delay">최소 대기 시간 (초)</Label>
+                <Input
+                  id="aq-min-delay"
+                  type="number"
+                  min={3}
+                  value={aqDraft.min_delay_sec}
+                  onChange={(e) =>
+                    setAqDraft({
+                      ...aqDraft,
+                      min_delay_sec: Math.max(3, parseInt(e.target.value || '3', 10)),
+                    })
+                  }
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="aq-max-delay">최대 대기 시간 (초)</Label>
+                <Input
+                  id="aq-max-delay"
+                  type="number"
+                  min={3}
+                  value={aqDraft.max_delay_sec}
+                  onChange={(e) =>
+                    setAqDraft({
+                      ...aqDraft,
+                      max_delay_sec: Math.max(3, parseInt(e.target.value || '3', 10)),
+                    })
+                  }
+                />
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              대국 종료 후 위 설정된 범위 내 무작위 초만큼 대기한 뒤 다음 게임을 찾습니다.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setAutoQueueDialogOpen(false)}>
+              취소
+            </Button>
+            <Button size="sm" onClick={() => void saveAutoQueueSettings()}>
+              저장
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

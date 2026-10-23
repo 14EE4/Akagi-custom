@@ -107,6 +107,56 @@ pub async fn dispatch_click_shaped(
 /// uses the same selector when running in browser mode. We grab the
 /// first canvas indiscriminately — multi-canvas pages aren't a thing on
 /// these platforms.
+
+/// Displays a temporary visual click ripple/marker with a label at `(x, y)` CSS pixels on the page.
+pub async fn show_click_marker(page: &Page, x: f64, y: f64, label: &str) -> Result<()> {
+    let js = format!(
+        r#"(()=>{{
+            try {{
+                const dot = document.createElement('div');
+                dot.style.position = 'fixed';
+                dot.style.left = '{x}px';
+                dot.style.top = '{y}px';
+                dot.style.width = '24px';
+                dot.style.height = '24px';
+                dot.style.borderRadius = '50%';
+                dot.style.backgroundColor = 'rgba(239, 68, 68, 0.8)';
+                dot.style.border = '2px solid #ffffff';
+                dot.style.boxShadow = '0 0 12px rgba(239, 68, 68, 1)';
+                dot.style.transform = 'translate(-50%, -50%) scale(1)';
+                dot.style.transition = 'all 0.9s cubic-bezier(0, 0, 0.2, 1)';
+                dot.style.zIndex = '2147483647';
+                dot.style.pointerEvents = 'none';
+                if ('{label}') {{
+                    const text = document.createElement('div');
+                    text.innerText = '{label}';
+                    text.style.position = 'absolute';
+                    text.style.bottom = '26px';
+                    text.style.left = '50%';
+                    text.style.transform = 'translateX(-50%)';
+                    text.style.color = '#ffffff';
+                    text.style.fontSize = '12px';
+                    text.style.fontWeight = 'bold';
+                    text.style.textShadow = '0 1px 3px rgba(0,0,0,0.9), 0 0 6px rgba(0,0,0,0.9)';
+                    text.style.whiteSpace = 'nowrap';
+                    text.style.padding = '2px 6px';
+                    text.style.borderRadius = '4px';
+                    text.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+                    dot.appendChild(text);
+                }}
+                document.body.appendChild(dot);
+                requestAnimationFrame(() => {{
+                    dot.style.transform = 'translate(-50%, -50%) scale(1.6)';
+                    dot.style.opacity = '0';
+                }});
+                setTimeout(() => dot.remove(), 950);
+            }} catch (_) {{}}
+        }})()"#
+    );
+    let _ = page.evaluate(js).await;
+    Ok(())
+}
+
 pub async fn evaluate_canvas_rect(page: &Page) -> Result<CanvasRect> {
     // IIFE so `Runtime.evaluate` returns a single value, not a Promise.
     // `is_likely_js_function` in chromiumoxide picks the right CDP call

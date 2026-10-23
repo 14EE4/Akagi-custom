@@ -167,7 +167,10 @@ mod win32 {
         pub fn GetClassNameW(hWnd: isize, lpClassName: *mut u16, nMaxCount: i32) -> i32;
         pub fn GetWindowTextLengthW(hWnd: isize) -> i32;
         pub fn SetWindowRgn(hWnd: isize, hRgn: isize, bRedraw: i32) -> i32;
+        pub fn PostMessageW(hWnd: isize, Msg: u32, wParam: usize, lParam: isize) -> i32;
     }
+
+    pub const WM_CLOSE: u32 = 0x0010;
 
     #[link(name = "gdi32")]
     extern "system" {
@@ -311,7 +314,7 @@ mod win32 {
         let (left_inset, top_inset, right_inset, bottom_inset) = insets;
         // Shift the embedded window down by TOP_OFFSET px to leave extra clearance
         // below the Akagi control bar.
-        const TOP_OFFSET: i32 = 44;
+        const TOP_OFFSET: i32 = 28;
         let win_x = pt.x - left_inset;
         let win_y = pt.y + TOP_OFFSET - top_inset;
         let win_w = w + left_inset + right_inset;
@@ -448,6 +451,23 @@ pub fn detach_on_exit() {
     {
         if let Ok(mut st) = EMBED_STATE.lock() {
             win32::detach_window(&mut st);
+        }
+    }
+}
+
+/// Close and terminate the embedded browser window when Akagi exits.
+pub fn close_on_exit() {
+    #[cfg(windows)]
+    {
+        if let Ok(mut st) = EMBED_STATE.lock() {
+            let hwnd = st.chrome_hwnd;
+            if hwnd != 0 && unsafe { win32::IsWindow(hwnd) } != 0 {
+                unsafe {
+                    win32::PostMessageW(hwnd, win32::WM_CLOSE, 0, 0);
+                }
+            }
+            st.chrome_hwnd = 0;
+            st.last_applied = None;
         }
     }
 }

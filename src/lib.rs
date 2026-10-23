@@ -213,7 +213,7 @@ pub fn run() {
                                 ipc::embed::on_host_window_moved();
                             }
                             tauri::WindowEvent::CloseRequested { .. } => {
-                                ipc::embed::detach_on_exit();
+                                ipc::embed::close_on_exit();
                                 if let Err(e) = ipc::overlay::close(&handle) {
                                     warn!("overlay: could not close with the main window: {e}");
                                 }

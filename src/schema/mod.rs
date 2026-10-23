@@ -18,7 +18,7 @@ pub use inspector::{
     HttpHeader, HttpPhase, InspectorEntry, ParsedFrame,
 };
 pub use ipc::{
-    BotInfo, BotSettings, BotStatus, CaptureKind, CaptureStatus, HoraScoreInfo, LoadStage,
+    AutoQueueStatus, BotInfo, BotSettings, BotStatus, CaptureKind, CaptureStatus, HoraScoreInfo, LoadStage,
     LogEntry, LogSessionInfo, Notification, NotifyLevel, ReadInspectorRequest,
     ReadInspectorResponse, ReadLogRequest, ReadLogResponse, Snapshot,
 };

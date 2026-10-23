@@ -144,10 +144,26 @@ export type DelayModelConfig = {
   no_budget_cap_ms: number
 }
 
+export type AutoQueueConfig = {
+  enabled: boolean
+  max_matches: number
+  min_delay_sec: number
+  max_delay_sec: number
+}
+
+export type AutoQueueStatus = {
+  enabled: boolean
+  current_matches: number
+  max_matches: number
+  state: 'idle' | 'waiting' | 'queuing'
+  wait_seconds_left?: number | null
+}
+
 export type AutoplayConfig = {
   enabled: boolean
   majsoul: MajsoulAutoplayConfig
   delay: DelayModelConfig
+  auto_queue?: AutoQueueConfig
 }
 
 /** Optional cloud-inference settings for the built-in native bot.

@@ -51,6 +51,21 @@ git fetch origin
 git checkout -f -B custom origin/custom
 ```
 
+### 최초 1회: Python 런타임(`runtime/`) 준비
+
+`runtime/python`, `runtime/uv`(번들 Python + uv)는 `.gitignore`(`runtime/*`)로 제외되어 있어 `git clone` / `git pull`로는 받아지지 않습니다. 비어 있으면 아카기 **Bots 탭의 Python 환경 설치가 실패**합니다 (번들 런타임이 없으면 시스템 PATH의 `python3`/`uv`를 찾는데, 없으면 설치 불가).
+
+아래 둘 중 하나로 `akagi.exe`와 같은 폴더의 `runtime/`을 채워 주세요.
+
+```powershell
+# 방법 A: 이미 런타임이 있는 PC의 runtime 폴더를 통째로 복사
+#   → <아카기 폴더>\runtime\python\x86_64-pc-windows-msvc\python.exe
+#   → <아카기 폴더>\runtime\uv\x86_64-pc-windows-msvc\uv.exe  가 있어야 함
+
+# 방법 B: 스크립트로 내려받기 (Git Bash 또는 WSL 필요, curl/tar/unzip 사용)
+bash scripts/fetch-runtime.sh x86_64-pc-windows-msvc
+```
+
 ### 이후 업데이트 시
 ```powershell
 Stop-Process -Name "akagi" -Force -ErrorAction SilentlyContinue

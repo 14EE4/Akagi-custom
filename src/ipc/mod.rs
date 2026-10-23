@@ -42,6 +42,7 @@
 
 pub mod capture_supervisor;
 pub mod commands;
+pub mod embed;
 pub mod overlay;
 pub mod state;
 

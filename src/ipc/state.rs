@@ -111,6 +111,8 @@ pub struct AppState {
     /// finishes) without ever spawning twice. There is no off-switch:
     /// once started, the manager runs for the lifetime of the process.
     pub bot_manager_started: Arc<AtomicBool>,
+    /// Control sender for the live BotManager to receive manual triggers (e.g. resync).
+    pub bot_control: Arc<Mutex<Option<tokio::sync::mpsc::Sender<crate::bot::BotControlMsg>>>>,
     /// Shared with the chromium capture backend (which writes the page
     /// handle on Majsoul WS open) and the `AutoplayManager` (which reads
     /// it to dispatch input). Always present; `enabled = false` in
@@ -174,6 +176,7 @@ impl AppState {
             runtime,
             syncs_in_flight: Arc::new(Mutex::new(HashSet::new())),
             bot_manager_started: Arc::new(AtomicBool::new(false)),
+            bot_control: Arc::new(Mutex::new(None)),
             autoplay_context: Arc::new(AutoplayContext::new()),
             autoplay_manager_started: Arc::new(AtomicBool::new(false)),
             updater_lock: Arc::new(Mutex::new(())),

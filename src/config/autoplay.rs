@@ -246,11 +246,11 @@ pub struct AutoQueueConfig {
     /// Maximum random delay before clicking rematch/next game (seconds). Default: 15
     pub max_delay_sec: u32,
 
-    /// Initial delay in ms after game end before the first confirm click. Default: 10000 (10s)
+    /// Initial delay in ms after game end before the first confirm click. Default: 25000 (25s)
     pub initial_delay_ms: u32,
     /// Number of confirm ("확인") clicks to advance through settlement screens (2 for normal characters, 3 for bonded/contracted). Default: 2
     pub confirm_clicks: u32,
-    /// Delay between confirm clicks in ms. Default: 3000
+    /// Delay between confirm clicks in ms. Default: 5000 (5s)
     pub confirm_delay_ms: u32,
     /// Normalized X coordinate of the bottom-right confirm button. Default: 13.9
     pub confirm_x: f64,
@@ -281,9 +281,9 @@ impl Default for AutoQueueConfig {
             max_matches: 0,
             min_delay_sec: 8,
             max_delay_sec: 15,
-            initial_delay_ms: 10000,
+            initial_delay_ms: 25000,
             confirm_clicks: 2,
-            confirm_delay_ms: 3000,
+            confirm_delay_ms: 5000,
             confirm_x: 13.9,
             confirm_y: 8.2,
             rematch_delay_ms: 2500,

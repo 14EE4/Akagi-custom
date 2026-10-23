@@ -20,7 +20,7 @@ use crate::ipc::capture_supervisor::{
 use crate::ipc::overlay;
 use crate::ipc::state::AppState;
 use crate::schema::{
-    BotInfo, BotSettings, GameRecord, HistoryEvent, HistoryEventLog, HistoryFilter, HoraScoreInfo,
+    AutoQueueStatus, BotInfo, BotSettings, GameRecord, HistoryEvent, HistoryEventLog, HistoryFilter, HoraScoreInfo,
     InspectorEntry, LogEntry, LogSessionInfo, Notification, ReadInspectorRequest,
     ReadInspectorResponse, ReadLogRequest, ReadLogResponse, Snapshot,
 };
@@ -101,9 +101,22 @@ pub async fn update_config(
     let platform_changed = prev_platform != new_config.platform.kind;
     let new_platform = new_config.platform.kind;
     let bot_now_enabled = new_config.bot.enabled;
-    let autoplay_now_enabled = new_config.autoplay.enabled;
+    let autoplay_now_enabled = new_config.autoplay.enabled || new_config.autoplay.auto_queue.enabled;
     let new_overlay = new_config.overlay.clone();
-    *state.config.write().await = new_config;
+    *state.config.write().await = new_config.clone();
+
+    // Sync auto-queue status snapshot
+    {
+        let mut st = state.auto_queue_status.write().await;
+        st.enabled = new_config.autoplay.auto_queue.enabled;
+        st.max_matches = new_config.autoplay.auto_queue.max_matches;
+        if !st.enabled {
+            st.current_matches = 0;
+            st.state = "idle".into();
+            st.wait_seconds_left = None;
+        }
+        let _ = state.auto_queue_status_bus.send(st.clone());
+    }
 
     // Open / close / retune the overlay window to match what was just saved.
     overlay::reconcile(&app, &new_overlay);
@@ -188,6 +201,8 @@ pub async fn update_config(
             .map(std::path::Path::to_path_buf)
             .unwrap_or_default();
         let started_flag = state.autoplay_manager_started.clone();
+        let aq_status = state.auto_queue_status.clone();
+        let aq_bus = state.auto_queue_status_bus.clone();
         tauri::async_runtime::spawn(async move {
             if let Err(e) = crate::autoplay::run_autoplay_manager(
                 cfg_for_ap,
@@ -197,6 +212,8 @@ pub async fn update_config(
                 resp_for_ap,
                 notify_for_ap,
                 config_dir_for_ap,
+                aq_status,
+                aq_bus,
             )
             .await
             {
@@ -1749,6 +1766,75 @@ fn persist_config(config: &AppConfig, path: &Path) -> std::io::Result<()> {
 /// Pre-builds the handler list for `tauri::generate_handler!`. Keep in
 /// sync when adding commands.
 #[tauri::command]
+pub async fn get_auto_queue_status(state: State<'_, AppState>) -> CmdResult<AutoQueueStatus> {
+    Ok(state.auto_queue_status.read().await.clone())
+}
+
+#[tauri::command]
+pub async fn set_auto_queue_enabled(
+    enabled: bool,
+    state: State<'_, AppState>,
+) -> CmdResult<()> {
+    let cfg = {
+        let mut cfg = state.config.write().await;
+        cfg.autoplay.auto_queue.enabled = enabled;
+        cfg.clone()
+    };
+    persist_config(&cfg, &state.config_path).map_err(|e| e.to_string())?;
+
+    {
+        let mut st = state.auto_queue_status.write().await;
+        st.enabled = enabled;
+        if !enabled {
+            st.current_matches = 0;
+            st.state = "idle".into();
+            st.wait_seconds_left = None;
+        }
+        let _ = state.auto_queue_status_bus.send(st.clone());
+    }
+
+    if claim_autoplay_manager_spawn(
+        cfg.autoplay.enabled || cfg.autoplay.auto_queue.enabled,
+        &state.autoplay_manager_started,
+    ) {
+        let cfg_for_ap = state.config.clone();
+        let ctx_for_ap = state.autoplay_context.clone();
+        let tracker_for_ap = state.game_tracker.clone();
+        let mjai_for_ap = state.mjai_bus.clone();
+        let resp_for_ap = state.bot_response_bus.clone();
+        let notify_for_ap = state.notify_bus.clone();
+        let config_dir_for_ap = state
+            .config_path
+            .parent()
+            .map(std::path::Path::to_path_buf)
+            .unwrap_or_default();
+        let aq_status = state.auto_queue_status.clone();
+        let aq_bus = state.auto_queue_status_bus.clone();
+        let started_flag = state.autoplay_manager_started.clone();
+        tauri::async_runtime::spawn(async move {
+            if let Err(e) = crate::autoplay::run_autoplay_manager(
+                cfg_for_ap,
+                ctx_for_ap,
+                tracker_for_ap,
+                mjai_for_ap,
+                resp_for_ap,
+                notify_for_ap,
+                config_dir_for_ap,
+                aq_status,
+                aq_bus,
+            )
+            .await
+            {
+                tracing::error!("Autoplay manager failed: {e:#}");
+                started_flag.store(false, std::sync::atomic::Ordering::SeqCst);
+            }
+        });
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn resync_bot(state: State<'_, AppState>) -> CmdResult<()> {
     tracing::info!("resync_bot command invoked from UI");
     let guard = state.bot_control.lock().await;
@@ -1782,6 +1868,8 @@ macro_rules! ipc_handlers {
             $crate::ipc::commands::stop_capture,
             $crate::ipc::commands::restart_capture,
             $crate::ipc::commands::resync_bot,
+            $crate::ipc::commands::get_auto_queue_status,
+            $crate::ipc::commands::set_auto_queue_enabled,
             $crate::ipc::commands::get_capture_status,
             $crate::ipc::commands::detect_system_chrome,
             $crate::ipc::commands::list_cft_installed,

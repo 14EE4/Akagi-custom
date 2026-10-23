@@ -11,6 +11,8 @@ pub struct AutoplayConfig {
     pub majsoul: MajsoulAutoplayConfig,
     /// Pre-click delay model (platform-agnostic). See `autoplay::delay`.
     pub delay: DelayModelConfig,
+    /// Auto-queue settings for automatically queuing the next match after game end.
+    pub auto_queue: AutoQueueConfig,
 }
 
 /// Which delay policy drives autoplay. Exactly one is active.
@@ -230,6 +232,32 @@ impl Default for MajsoulAutoplayConfig {
     }
 }
 
+
+/// Parameters for automatic queuing of the next match after game end.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AutoQueueConfig {
+    /// Whether automatic queuing for the next match after game end is enabled.
+    pub enabled: bool,
+    /// Maximum number of consecutive matches to play automatically (0 = unlimited).
+    pub max_matches: u32,
+    /// Minimum random delay before clicking rematch/next game (seconds). Default: 8
+    pub min_delay_sec: u32,
+    /// Maximum random delay before clicking rematch/next game (seconds). Default: 15
+    pub max_delay_sec: u32,
+}
+
+impl Default for AutoQueueConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            max_matches: 0,
+            min_delay_sec: 8,
+            max_delay_sec: 15,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -258,5 +286,13 @@ mod tests {
         assert_eq!(cfg.delay.mode, default.mode);
         assert_eq!(cfg.delay.min_button_delay_ms, default.min_button_delay_ms);
         assert!(!cfg.delay.lognormal.is_empty());
+    }
+    #[test]
+    fn missing_auto_queue_gets_defaults() {
+        let cfg: AutoplayConfig = toml::from_str("enabled = true").unwrap();
+        assert_eq!(cfg.auto_queue.enabled, false);
+        assert_eq!(cfg.auto_queue.max_matches, 0);
+        assert_eq!(cfg.auto_queue.min_delay_sec, 8);
+        assert_eq!(cfg.auto_queue.max_delay_sec, 15);
     }
 }

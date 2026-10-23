@@ -483,7 +483,16 @@
       "min_delay": "最小延遲（ms）",
       "min_delay_hint": "所有動作的安全下限：雀魂需要時間渲染畫面，太早點擊會被吃掉。兩種模式皆適用，腳本無法低於此值。",
       "min_button_delay": "按鈕最小延遲（ms）",
-      "min_button_delay_hint": "吃/碰/槓/和/跳過/立直等按鈕的更高下限——按鈕要等打牌動畫結束加上自身彈出動畫才會出現，比手牌渲染更晚。若仍出現按鈕沒點到的情況請調高此值。"
+      "min_button_delay_hint": "吃/碰/槓/和/跳過/立直等按鈕的更高下限——按鈕要等打牌動畫結束加上自身彈出動畫才會出現，比手牌渲染更晚。若仍出現按鈕沒點到的情況請調高此值。",
+      "auto_queue_title": "自動連續對局 (Auto Queue)",
+      "auto_queue_enable": "自動匹配下一局",
+      "auto_queue_enable_help": "對局結束後自動跳過結算畫面，點擊「再戰」按鈕以自動進入下一場對局。",
+      "auto_queue_max_matches": "最大對局數 (0 = 無限制)",
+      "auto_queue_max_matches_hint": "完成指定局數後自動停止匹配。0為無限制。",
+      "auto_queue_min_delay_sec": "匹配前最小等待時間 (秒)",
+      "auto_queue_min_delay_sec_hint": "對局結束後等待點擊再戰的最小隨機時間。",
+      "auto_queue_max_delay_sec": "匹配前最大等待時間 (秒)",
+      "auto_queue_max_delay_sec_hint": "對局結束後等待點擊再戰的最大隨機時間。"
     },
     "overlay": "建議懸浮視窗",
     "overlay_enabled": "顯示懸浮視窗",

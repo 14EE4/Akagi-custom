@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Bot, ExternalLink, PanelTopClose, Play, RefreshCw, RotateCcw } from 'lucide-react'
+import { Bot, ExternalLink, PanelTopClose, Play, RefreshCw, RotateCcw, Settings2 } from 'lucide-react'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { useAutoQueueStore } from '@/stores/autoQueueStore'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -27,6 +30,78 @@ export function PlayClient() {
     browser_found: false,
   })
   const [busy, setBusy] = useState(false)
+  const autoQueueStatus = useAutoQueueStore((s) => s.status)
+  const [autoQueueDialogOpen, setAutoQueueDialogOpen] = useState(false)
+  const [aqDraft, setAqDraft] = useState({
+    max_matches: 0,
+    min_delay_sec: 8,
+    max_delay_sec: 15,
+  })
+
+  const openAutoQueueDialog = () => {
+    const currentAq = config?.autoplay?.auto_queue
+    setAqDraft({
+      max_matches: currentAq?.max_matches ?? 0,
+      min_delay_sec: currentAq?.min_delay_sec ?? 8,
+      max_delay_sec: currentAq?.max_delay_sec ?? 15,
+    })
+    setAutoQueueDialogOpen(true)
+  }
+
+  const saveAutoQueueSettings = async () => {
+    if (!HAS_TAURI || !config) return
+    const nextConfig = {
+      ...config,
+      autoplay: {
+        ...config.autoplay,
+        auto_queue: {
+          ...(config.autoplay?.auto_queue ?? {
+            enabled: false,
+            max_matches: 0,
+            min_delay_sec: 8,
+            max_delay_sec: 15,
+          }),
+          max_matches: aqDraft.max_matches,
+          min_delay_sec: aqDraft.min_delay_sec,
+          max_delay_sec: aqDraft.max_delay_sec,
+        },
+      },
+    }
+    setConfig(nextConfig)
+    setAutoQueueDialogOpen(false)
+    try {
+      await invoke('update_config', { newConfig: nextConfig })
+      toast.success('자동 연속 대국 설정이 저장되었습니다.')
+    } catch {
+      toast.error('설정 저장에 실패했습니다.')
+    }
+  }
+
+  const toggleAutoQueue = async (enabled: boolean) => {
+    if (!HAS_TAURI) return
+    try {
+      await invoke('set_auto_queue_enabled', { enabled })
+      if (config) {
+        setConfig({
+          ...config,
+          autoplay: {
+            ...config.autoplay,
+            auto_queue: {
+              ...(config.autoplay?.auto_queue ?? {
+                enabled: false,
+                max_matches: 0,
+                min_delay_sec: 8,
+                max_delay_sec: 15,
+              }),
+              enabled,
+            },
+          },
+        })
+      }
+    } catch {
+      /* ignore */
+    }
+  }
 
   const config = useConfigStore((s) => s.config)
   const setConfig = useConfigStore((s) => s.setConfig)
@@ -231,6 +306,51 @@ export function PlayClient() {
             />
           </div>
 
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted/50 border border-border/60">
+            <Label htmlFor="play-autoqueue-toggle" className="text-xs cursor-pointer whitespace-nowrap flex items-center gap-1">
+              <span>자동 다음 대국</span>
+              {autoQueueStatus.enabled && (
+                <span
+                  className={`text-[10px] font-semibold px-1 py-0.5 rounded cursor-pointer transition-colors ${
+                    autoQueueStatus.state === 'waiting'
+                      ? 'bg-amber-500/20 text-amber-500 border border-amber-500/40 animate-pulse'
+                      : autoQueueStatus.state === 'queuing'
+                      ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/40'
+                      : 'bg-primary/20 text-primary border border-primary/30'
+                  }`}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    openAutoQueueDialog()
+                  }}
+                  title="클릭하여 연속 대국 설정 변경"
+                >
+                  {autoQueueStatus.state === 'waiting'
+                    ? `대기 중 (${autoQueueStatus.wait_seconds_left ?? 0}s)`
+                    : autoQueueStatus.state === 'queuing'
+                    ? '매칭 중...'
+                    : autoQueueStatus.max_matches > 0
+                    ? `${autoQueueStatus.current_matches}/${autoQueueStatus.max_matches}판`
+                    : autoQueueStatus.current_matches > 0
+                    ? `${autoQueueStatus.current_matches}판 완료`
+                    : 'ON'}
+                </span>
+              )}
+            </Label>
+            <Switch
+              id="play-autoqueue-toggle"
+              checked={autoQueueStatus.enabled}
+              onCheckedChange={(v) => void toggleAutoQueue(v)}
+            />
+            <button
+              type="button"
+              className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded"
+              onClick={openAutoQueueDialog}
+              title="자동 연속 대국 상세 설정 (최대 대국 수, 대기 시간)"
+            >
+              <Settings2 className="h-3 w-3" />
+            </button>
+          </div>
+
           <Button
             variant="outline"
             size="sm"
@@ -322,6 +442,81 @@ export function PlayClient() {
           </div>
         )}
       </div>
+
+      {/* Auto Queue Quick Settings Dialog */}
+      <Dialog open={autoQueueDialogOpen} onOpenChange={setAutoQueueDialogOpen}>
+        <DialogContent className="sm:max-w-[380px]">
+          <DialogHeader>
+            <DialogTitle>자동 연속 대국 설정 (Auto Queue)</DialogTitle>
+            <DialogDescription>
+              대국 종료 후 인간적인 무작위 텀을 두고 자동으로 재전(동일 룰 대국)을 진행합니다.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-2 text-xs">
+            <div className="grid gap-1.5">
+              <Label htmlFor="aq-max-matches">최대 대국 수 (0 = 무제한)</Label>
+              <Input
+                id="aq-max-matches"
+                type="number"
+                min={0}
+                value={aqDraft.max_matches}
+                onChange={(e) =>
+                  setAqDraft({
+                    ...aqDraft,
+                    max_matches: Math.max(0, parseInt(e.target.value || '0', 10)),
+                  })
+                }
+              />
+              <p className="text-[11px] text-muted-foreground">
+                설정한 판수를 마치면 자동으로 연속 대국이 종료됩니다.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label htmlFor="aq-min-delay">최소 대기 시간 (초)</Label>
+                <Input
+                  id="aq-min-delay"
+                  type="number"
+                  min={3}
+                  value={aqDraft.min_delay_sec}
+                  onChange={(e) =>
+                    setAqDraft({
+                      ...aqDraft,
+                      min_delay_sec: Math.max(3, parseInt(e.target.value || '3', 10)),
+                    })
+                  }
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="aq-max-delay">최대 대기 시간 (초)</Label>
+                <Input
+                  id="aq-max-delay"
+                  type="number"
+                  min={3}
+                  value={aqDraft.max_delay_sec}
+                  onChange={(e) =>
+                    setAqDraft({
+                      ...aqDraft,
+                      max_delay_sec: Math.max(3, parseInt(e.target.value || '3', 10)),
+                    })
+                  }
+                />
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              대국 종료 후 위 설정된 범위 내 무작위 초만큼 대기한 뒤 다음 게임을 찾습니다.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setAutoQueueDialogOpen(false)}>
+              취소
+            </Button>
+            <Button size="sm" onClick={() => void saveAutoQueueSettings()}>
+              저장
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

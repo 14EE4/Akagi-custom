@@ -329,6 +329,30 @@ pub struct ReadInspectorResponse {
     pub skipped_malformed: u32,
 }
 
+
+/// Live status of the auto-queue subsystem.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AutoQueueStatus {
+    pub enabled: bool,
+    pub current_matches: u32,
+    pub max_matches: u32,
+    pub state: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wait_seconds_left: Option<u32>,
+}
+
+impl Default for AutoQueueStatus {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            current_matches: 0,
+            max_matches: 0,
+            state: "idle".to_string(),
+            wait_seconds_left: None,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

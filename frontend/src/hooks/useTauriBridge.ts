@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { HAS_TAURI, invoke, listen } from '@/lib/tauri'
 import type {
   AnalysisResult,
+  AutoQueueStatus,
   BotResponse,
   BotStatus,
   CaptureStatus,
@@ -23,6 +24,7 @@ import { useApiStatusStore } from '@/stores/apiStatusStore'
 import { useInstallStore } from '@/stores/installStore'
 import { useConfigStore } from '@/stores/configStore'
 import { useHistoryStore } from '@/stores/historyStore'
+import { useAutoQueueStore } from '@/stores/autoQueueStore'
 import { toast, type ToastSeverity } from '@/components/ui/sonner'
 
 // Backend `Notification.level` ∈ {info,success,warn,error}; toast helper
@@ -75,6 +77,12 @@ export function useTauriBridge() {
       } catch {
         /* ignore */
       }
+      try {
+        const aq = await invoke<AutoQueueStatus>('get_auto_queue_status')
+        if (!cancelled) useAutoQueueStore.getState().setStatus(aq)
+      } catch {
+        /* ignore */
+      }
       // Game history: load all records once at startup. The History
       // tab is the only consumer; loading lazily there forces a
       // round-trip on first nav, so do it eagerly while the bridge
@@ -123,6 +131,10 @@ export function useTauriBridge() {
     // overlay is open.
     listen<OverlayConfig>('overlay-config', (o) => {
       useConfigStore.getState().setOverlay(o)
+    }).then((u) => unlistens.push(u))
+
+    listen<AutoQueueStatus>('auto-queue-status', (st) => {
+      useAutoQueueStore.getState().setStatus(st)
     }).then((u) => unlistens.push(u))
 
     listen<HistoryEvent>('history-recorded', (ev) => {

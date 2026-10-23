@@ -483,7 +483,16 @@
       "min_delay": "Minimum delay (ms)",
       "min_delay_hint": "Safety floor for every action: Mahjong Soul needs time to render the UI, and a click issued too early is silently lost. Applies in both modes and cannot be undercut by the script.",
       "min_button_delay": "Minimum button delay (ms)",
-      "min_button_delay_hint": "Higher floor for chi/pon/kan/ron/skip/riichi buttons — they appear only after the discard animation plus their own pop-in, later than hand tiles. Raise this if buttons are still missing clicks."
+      "min_button_delay_hint": "Higher floor for chi/pon/kan/ron/skip/riichi buttons — they appear only after the discard animation plus their own pop-in, later than hand tiles. Raise this if buttons are still missing clicks.",
+      "auto_queue_title": "Auto Queue (Next Game)",
+      "auto_queue_enable": "Enable auto queue",
+      "auto_queue_enable_help": "When enabled, automatically skips the settlement screens and clicks Rematch (再戦) after each game to queue the next game.",
+      "auto_queue_max_matches": "Max matches (0 = unlimited)",
+      "auto_queue_max_matches_hint": "Stop auto-queuing after completing this many matches. 0 means unlimited.",
+      "auto_queue_min_delay_sec": "Min delay before rematch (seconds)",
+      "auto_queue_min_delay_sec_hint": "Minimum random wait time at the result screen before clicking rematch.",
+      "auto_queue_max_delay_sec": "Max delay before rematch (seconds)",
+      "auto_queue_max_delay_sec_hint": "Maximum random wait time at the result screen before clicking rematch."
     },
     "overlay": "Suggestion overlay",
     "overlay_enabled": "Show overlay window",

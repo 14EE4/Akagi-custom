@@ -25,7 +25,7 @@
 
 use crate::analysis::result::AnalysisResult;
 use crate::bot::BotResponse;
-use crate::schema::{BotStatus, CaptureStatus, HistoryEvent, MjaiEvent, Notification};
+use crate::schema::{AutoQueueStatus, BotStatus, CaptureStatus, HistoryEvent, MjaiEvent, Notification};
 use tokio::sync::broadcast;
 
 /// Fan-out for `MjaiEvent`s from platform bridges.
@@ -42,6 +42,10 @@ pub type CaptureStatusBus = broadcast::Sender<CaptureStatus>;
 
 /// Fan-out for transient `Notification`s pushed at the user.
 pub type NotifyBus = broadcast::Sender<Notification>;
+
+/// Fan-out for `AutoQueueStatus` updates.
+pub type AutoQueueStatusBus = broadcast::Sender<AutoQueueStatus>;
+
 
 /// Fan-out for `AnalysisResult`s produced after each game-state update.
 /// Producer: `analysis::runner`. Consumers: `ipc` forwarder, future HUD.
@@ -133,6 +137,11 @@ pub fn post_tracker_bus() -> PostTrackerBus {
 }
 
 pub fn history_bus() -> HistoryBus {
+    let (tx, _rx) = broadcast::channel(STATUS_CAPACITY);
+    tx
+}
+
+pub fn auto_queue_status_bus() -> AutoQueueStatusBus {
     let (tx, _rx) = broadcast::channel(STATUS_CAPACITY);
     tx
 }

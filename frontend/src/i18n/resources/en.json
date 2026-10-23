@@ -6,7 +6,8 @@
     "logs": "Logs",
     "history": "History",
     "review": "Review",
-    "settings": "Settings"
+    "settings": "Settings",
+    "play": "?? (Play)"
   },
   "history": {
     "title": "Game History",

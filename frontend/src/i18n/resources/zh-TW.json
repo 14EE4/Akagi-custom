@@ -6,7 +6,8 @@
     "logs": "日誌",
     "history": "歷史紀錄",
     "review": "對局覆盤",
-    "settings": "設定"
+    "settings": "設定",
+    "play": "?? (Play)"
   },
   "history": {
     "title": "歷史紀錄",

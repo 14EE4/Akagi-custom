@@ -227,7 +227,7 @@ fn paths_match(a: &str, b: &str, rules: PathMatchRules) -> bool {
 /// if one is still running, by matching the process command line via `sysinfo`.
 /// Windows-only (Unix reclaims via the SingletonLock symlink instead).
 #[cfg(windows)]
-fn find_controlled_browser_pid(profile: &Path) -> Option<u32> {
+pub fn find_controlled_browser_pid(profile: &Path) -> Option<u32> {
     let mut sys = System::new();
     // The default refresh does NOT fetch the command line; ask for it
     // explicitly (that's what we match `--user-data-dir` against).

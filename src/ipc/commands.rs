@@ -1942,8 +1942,10 @@ pub async fn test_auto_queue_step(
                     id: Some("auto-queue-sim".into()),
                 });
 
+                // 초기 연출 대기
+                tokio::time::sleep(std::time::Duration::from_millis(aq.initial_delay_ms as u64)).await;
+
                 for i in 1..=aq.confirm_clicks {
-                    tokio::time::sleep(std::time::Duration::from_millis(aq.confirm_delay_ms as u64)).await;
                     let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
                         &ctx,
                         aq.confirm_x,
@@ -1951,9 +1953,10 @@ pub async fn test_auto_queue_step(
                         &format!("확인 ({i}/{})", aq.confirm_clicks),
                         true,
                     ).await;
+                    tokio::time::sleep(std::time::Duration::from_millis(aq.confirm_delay_ms as u64)).await;
                 }
 
-                tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+                tokio::time::sleep(std::time::Duration::from_millis(aq.rematch_delay_ms as u64)).await;
                 let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
                     &ctx,
                     aq.rematch_x,

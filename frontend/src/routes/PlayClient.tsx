@@ -53,15 +53,17 @@ export function PlayClient() {
     max_matches: 0,
     min_delay_sec: 8,
     max_delay_sec: 15,
-    confirm_clicks: 3,
-    confirm_delay_ms: 2400,
+    initial_delay_ms: 3000,
+    confirm_clicks: 2,
+    confirm_delay_ms: 3000,
     confirm_x: 13.9,
     confirm_y: 8.2,
+    rematch_delay_ms: 2500,
     rematch_x: 11.2,
     rematch_y: 8.2,
-    modal_delay_ms: 1500,
+    modal_delay_ms: 2200,
     modal_yes_x: 6.9,
-    modal_yes_y: 5.9,
+    modal_yes_y: 6.5,
     show_click_indicator: true,
   })
 
@@ -76,15 +78,17 @@ export function PlayClient() {
       max_matches: currentAq?.max_matches ?? 0,
       min_delay_sec: currentAq?.min_delay_sec ?? 8,
       max_delay_sec: currentAq?.max_delay_sec ?? 15,
-      confirm_clicks: currentAq?.confirm_clicks ?? 3,
-      confirm_delay_ms: currentAq?.confirm_delay_ms ?? 2400,
+      initial_delay_ms: currentAq?.initial_delay_ms ?? 3000,
+      confirm_clicks: currentAq?.confirm_clicks ?? 2,
+      confirm_delay_ms: currentAq?.confirm_delay_ms ?? 3000,
       confirm_x: currentAq?.confirm_x ?? 13.9,
       confirm_y: currentAq?.confirm_y ?? 8.2,
+      rematch_delay_ms: currentAq?.rematch_delay_ms ?? 2500,
       rematch_x: currentAq?.rematch_x ?? 11.2,
       rematch_y: currentAq?.rematch_y ?? 8.2,
-      modal_delay_ms: currentAq?.modal_delay_ms ?? 1500,
+      modal_delay_ms: currentAq?.modal_delay_ms ?? 2200,
       modal_yes_x: currentAq?.modal_yes_x ?? 6.9,
-      modal_yes_y: currentAq?.modal_yes_y ?? 5.9,
+      modal_yes_y: currentAq?.modal_yes_y ?? 6.5,
       show_click_indicator: currentAq?.show_click_indicator ?? true,
     })
     setAutoQueueDialogOpen(true)
@@ -96,15 +100,17 @@ export function PlayClient() {
       max_matches: currentAq?.max_matches ?? 0,
       min_delay_sec: currentAq?.min_delay_sec ?? 8,
       max_delay_sec: currentAq?.max_delay_sec ?? 15,
-      confirm_clicks: currentAq?.confirm_clicks ?? 3,
-      confirm_delay_ms: currentAq?.confirm_delay_ms ?? 2400,
+      initial_delay_ms: currentAq?.initial_delay_ms ?? 3000,
+      confirm_clicks: currentAq?.confirm_clicks ?? 2,
+      confirm_delay_ms: currentAq?.confirm_delay_ms ?? 3000,
       confirm_x: currentAq?.confirm_x ?? 13.9,
       confirm_y: currentAq?.confirm_y ?? 8.2,
+      rematch_delay_ms: currentAq?.rematch_delay_ms ?? 2500,
       rematch_x: currentAq?.rematch_x ?? 11.2,
       rematch_y: currentAq?.rematch_y ?? 8.2,
-      modal_delay_ms: currentAq?.modal_delay_ms ?? 1500,
+      modal_delay_ms: currentAq?.modal_delay_ms ?? 2200,
       modal_yes_x: currentAq?.modal_yes_x ?? 6.9,
-      modal_yes_y: currentAq?.modal_yes_y ?? 5.9,
+      modal_yes_y: currentAq?.modal_yes_y ?? 6.5,
       show_click_indicator: currentAq?.show_click_indicator ?? true,
     })
     setAutoQueueDebugOpen(true)
@@ -692,19 +698,80 @@ export function PlayClient() {
                 </div>
 
                 {/* Coordinates & Timings Fine-Tuning */}
-                <div className="space-y-2 p-2 rounded-lg bg-muted/40 border border-border/50 text-[11px]">
+                <div className="space-y-2.5 p-2 rounded-lg bg-muted/40 border border-border/50 text-[11px]">
                   {/* Step 1: Confirm */}
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     <div className="flex items-center justify-between font-semibold text-foreground">
-                      <span>1단계 [확인] (우하단)</span>
-                      <span className="text-[10px] text-muted-foreground">{aqDraft.confirm_clicks}회 반복</span>
+                      <span>1단계 [확인] (우하단 연출 스킵)</span>
+                      <span className="text-[10px] text-primary font-bold">{aqDraft.confirm_clicks}회 클릭</span>
                     </div>
+
+                    {/* Character Preset Quick Toggle */}
                     <div className="flex items-center gap-1.5">
+                      <Button
+                        size="sm"
+                        variant={aqDraft.confirm_clicks === 2 ? 'default' : 'outline'}
+                        className="h-5 text-[10px] px-2 py-0 flex-1 font-semibold"
+                        onClick={() => setAqDraft({ ...aqDraft, confirm_clicks: 2 })}
+                      >
+                        계약 작사 (2회)
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={aqDraft.confirm_clicks === 3 ? 'default' : 'outline'}
+                        className="h-5 text-[10px] px-2 py-0 flex-1 font-semibold"
+                        onClick={() => setAqDraft({ ...aqDraft, confirm_clicks: 3 })}
+                      >
+                        일반 작사 (3회)
+                      </Button>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={10}
+                        className="h-5 text-[10px] w-12 px-1 text-center"
+                        value={aqDraft.confirm_clicks}
+                        onChange={(e) => setAqDraft({ ...aqDraft, confirm_clicks: Math.max(1, parseInt(e.target.value || '1', 10)) })}
+                        title="직접 확인 클릭 횟수 지정"
+                      />
+                    </div>
+
+                    {/* Delays for Step 1 */}
+                    <div className="grid grid-cols-2 gap-1.5 pt-0.5 text-[10px]">
+                      <div>
+                        <span className="text-muted-foreground">대국 종료 후 첫 대기:</span>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <Input
+                            type="number"
+                            step={100}
+                            className="h-5 text-[10px] px-1 text-center"
+                            value={aqDraft.initial_delay_ms}
+                            onChange={(e) => setAqDraft({ ...aqDraft, initial_delay_ms: Math.max(500, parseInt(e.target.value || '1000', 10)) })}
+                          />
+                          <span className="text-muted-foreground shrink-0">ms</span>
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">확인 클릭 간 딜레이:</span>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <Input
+                            type="number"
+                            step={100}
+                            className="h-5 text-[10px] px-1 text-center"
+                            value={aqDraft.confirm_delay_ms}
+                            onChange={(e) => setAqDraft({ ...aqDraft, confirm_delay_ms: Math.max(500, parseInt(e.target.value || '1000', 10)) })}
+                          />
+                          <span className="text-muted-foreground shrink-0">ms</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Coordinates for Step 1 */}
+                    <div className="flex items-center gap-1.5 pt-0.5">
                       <span className="text-muted-foreground">X:</span>
                       <Input
                         type="number"
                         step={0.1}
-                        className="h-6 text-xs w-16 px-1 text-center"
+                        className="h-5 text-[10px] w-14 px-1 text-center"
                         value={aqDraft.confirm_x}
                         onChange={(e) => setAqDraft({ ...aqDraft, confirm_x: parseFloat(e.target.value || '0') })}
                       />
@@ -712,14 +779,14 @@ export function PlayClient() {
                       <Input
                         type="number"
                         step={0.1}
-                        className="h-6 text-xs w-16 px-1 text-center"
+                        className="h-5 text-[10px] w-14 px-1 text-center"
                         value={aqDraft.confirm_y}
                         onChange={(e) => setAqDraft({ ...aqDraft, confirm_y: parseFloat(e.target.value || '0') })}
                       />
                       <Button
                         size="sm"
                         variant="secondary"
-                        className="h-6 text-[10px] px-2 ml-auto"
+                        className="h-5 text-[10px] px-2 ml-auto"
                         onClick={() => void testSingleClick(aqDraft.confirm_x, aqDraft.confirm_y, '확인')}
                       >
                         클릭
@@ -728,16 +795,29 @@ export function PlayClient() {
                   </div>
 
                   {/* Step 2: Rematch */}
-                  <div className="space-y-1 pt-1.5 border-t border-border/30">
+                  <div className="space-y-1.5 pt-2 border-t border-border/30">
                     <div className="flex items-center justify-between font-semibold text-foreground">
-                      <span>2단계 [한번 더] (우하단 좌측)</span>
+                      <span>2단계 [한번 더] (우하단 좌측 재대국)</span>
                     </div>
+
+                    <div className="flex items-center gap-2 text-[10px]">
+                      <span className="text-muted-foreground shrink-0">결과 화면 대기 딜레이:</span>
+                      <Input
+                        type="number"
+                        step={100}
+                        className="h-5 text-[10px] w-18 px-1 text-center"
+                        value={aqDraft.rematch_delay_ms}
+                        onChange={(e) => setAqDraft({ ...aqDraft, rematch_delay_ms: Math.max(500, parseInt(e.target.value || '1000', 10)) })}
+                      />
+                      <span className="text-muted-foreground shrink-0">ms</span>
+                    </div>
+
                     <div className="flex items-center gap-1.5">
                       <span className="text-muted-foreground">X:</span>
                       <Input
                         type="number"
                         step={0.1}
-                        className="h-6 text-xs w-16 px-1 text-center"
+                        className="h-5 text-[10px] w-14 px-1 text-center"
                         value={aqDraft.rematch_x}
                         onChange={(e) => setAqDraft({ ...aqDraft, rematch_x: parseFloat(e.target.value || '0') })}
                       />
@@ -745,14 +825,14 @@ export function PlayClient() {
                       <Input
                         type="number"
                         step={0.1}
-                        className="h-6 text-xs w-16 px-1 text-center"
+                        className="h-5 text-[10px] w-14 px-1 text-center"
                         value={aqDraft.rematch_y}
                         onChange={(e) => setAqDraft({ ...aqDraft, rematch_y: parseFloat(e.target.value || '0') })}
                       />
                       <Button
                         size="sm"
                         variant="secondary"
-                        className="h-6 text-[10px] px-2 ml-auto"
+                        className="h-5 text-[10px] px-2 ml-auto"
                         onClick={() => void testSingleClick(aqDraft.rematch_x, aqDraft.rematch_y, '한번더')}
                       >
                         클릭
@@ -761,16 +841,29 @@ export function PlayClient() {
                   </div>
 
                   {/* Step 3: Modal Yes */}
-                  <div className="space-y-1 pt-1.5 border-t border-border/30">
+                  <div className="space-y-1.5 pt-2 border-t border-border/30">
                     <div className="flex items-center justify-between font-semibold text-foreground">
-                      <span>3단계 [팝업 '네'] (화면 중앙 좌측)</span>
+                      <span>3단계 [팝업 '네'] (화면 중앙 좌측 확인)</span>
                     </div>
+
+                    <div className="flex items-center gap-2 text-[10px]">
+                      <span className="text-muted-foreground shrink-0">팝업창 대기 딜레이:</span>
+                      <Input
+                        type="number"
+                        step={100}
+                        className="h-5 text-[10px] w-18 px-1 text-center"
+                        value={aqDraft.modal_delay_ms}
+                        onChange={(e) => setAqDraft({ ...aqDraft, modal_delay_ms: Math.max(500, parseInt(e.target.value || '1000', 10)) })}
+                      />
+                      <span className="text-muted-foreground shrink-0">ms</span>
+                    </div>
+
                     <div className="flex items-center gap-1.5">
                       <span className="text-muted-foreground">X:</span>
                       <Input
                         type="number"
                         step={0.1}
-                        className="h-6 text-xs w-16 px-1 text-center"
+                        className="h-5 text-[10px] w-14 px-1 text-center"
                         value={aqDraft.modal_yes_x}
                         onChange={(e) => setAqDraft({ ...aqDraft, modal_yes_x: parseFloat(e.target.value || '0') })}
                       />
@@ -778,14 +871,14 @@ export function PlayClient() {
                       <Input
                         type="number"
                         step={0.1}
-                        className="h-6 text-xs w-16 px-1 text-center"
+                        className="h-5 text-[10px] w-14 px-1 text-center"
                         value={aqDraft.modal_yes_y}
                         onChange={(e) => setAqDraft({ ...aqDraft, modal_yes_y: parseFloat(e.target.value || '0') })}
                       />
                       <Button
                         size="sm"
                         variant="secondary"
-                        className="h-6 text-[10px] px-2 ml-auto"
+                        className="h-5 text-[10px] px-2 ml-auto"
                         onClick={() => void testSingleClick(aqDraft.modal_yes_x, aqDraft.modal_yes_y, '네')}
                       >
                         클릭

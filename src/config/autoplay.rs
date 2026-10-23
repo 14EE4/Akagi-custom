@@ -246,23 +246,29 @@ pub struct AutoQueueConfig {
     /// Maximum random delay before clicking rematch/next game (seconds). Default: 15
     pub max_delay_sec: u32,
 
-    /// Number of confirm ("확인") clicks to advance through settlement screens. Default: 3
+    /// Initial delay in ms after game end before the first confirm click. Default: 3000
+    pub initial_delay_ms: u32,
+    /// Number of confirm ("확인") clicks to advance through settlement screens (2 for bonded/contracted characters, 3 for normal). Default: 2
     pub confirm_clicks: u32,
-    /// Delay between confirm clicks in ms. Default: 2400
+    /// Delay between confirm clicks in ms. Default: 3000
     pub confirm_delay_ms: u32,
     /// Normalized X coordinate of the bottom-right confirm button. Default: 13.9
     pub confirm_x: f64,
     /// Normalized Y coordinate of the bottom-right confirm button. Default: 8.2
     pub confirm_y: f64,
+
+    /// Delay in ms after settlement screens before clicking rematch. Default: 2500
+    pub rematch_delay_ms: u32,
     /// Normalized X coordinate of the rematch ("한번더") button. Default: 11.2
     pub rematch_x: f64,
     /// Normalized Y coordinate of the rematch ("한번더") button. Default: 8.2
     pub rematch_y: f64,
-    /// Delay after clicking rematch before clicking modal "네" in ms. Default: 1500
+
+    /// Delay after clicking rematch before clicking modal "네" in ms. Default: 2200
     pub modal_delay_ms: u32,
     /// Normalized X coordinate of the modal confirmation "네" button. Default: 6.9
     pub modal_yes_x: f64,
-    /// Normalized Y coordinate of the modal confirmation "네" button. Default: 5.9
+    /// Normalized Y coordinate of the modal confirmation "네" button. Default: 6.5
     pub modal_yes_y: f64,
     /// Whether to display a visual ripple marker on screen where clicked. Default: true
     pub show_click_indicator: bool,
@@ -275,15 +281,17 @@ impl Default for AutoQueueConfig {
             max_matches: 0,
             min_delay_sec: 8,
             max_delay_sec: 15,
-            confirm_clicks: 3,
-            confirm_delay_ms: 2400,
+            initial_delay_ms: 3000,
+            confirm_clicks: 2,
+            confirm_delay_ms: 3000,
             confirm_x: 13.9,
             confirm_y: 8.2,
+            rematch_delay_ms: 2500,
             rematch_x: 11.2,
             rematch_y: 8.2,
-            modal_delay_ms: 1500,
+            modal_delay_ms: 2200,
             modal_yes_x: 6.9,
-            modal_yes_y: 5.9,
+            modal_yes_y: 6.5,
             show_click_indicator: true,
         }
     }

@@ -159,12 +159,15 @@ pub async fn auto_queue_watcher(
                         let _ = status_bus.send(st.clone());
                     }
 
+                    // 대국 종료 직후 정산 화면 연출 대기
+                    let initial_delay = Duration::from_millis(aq.initial_delay_ms.max(500) as u64);
+                    tokio::time::sleep(initial_delay).await;
+
                     let confirm_clicks = aq.confirm_clicks.clamp(1, 10);
                     let confirm_delay = Duration::from_millis(aq.confirm_delay_ms.max(500) as u64);
 
                     let mut aborted = false;
                     for step_idx in 1..=confirm_clicks {
-                        tokio::time::sleep(confirm_delay).await;
                         if !cfg.read().await.autoplay.auto_queue.enabled {
                             aborted = true;
                             break;
@@ -186,6 +189,9 @@ pub async fn auto_queue_watcher(
                         {
                             warn!("auto_queue: confirm click failed: {e}");
                         }
+
+                        // 각 확인 클릭 간 딜레이 대기
+                        tokio::time::sleep(confirm_delay).await;
                     }
 
                     if aborted {
@@ -194,7 +200,8 @@ pub async fn auto_queue_watcher(
                     }
 
                     // 최종 결과 화면 도달 대기
-                    tokio::time::sleep(Duration::from_millis(1500)).await;
+                    let rematch_prep_delay = Duration::from_millis(aq.rematch_delay_ms.max(500) as u64);
+                    tokio::time::sleep(rematch_prep_delay).await;
                     if !cfg.read().await.autoplay.auto_queue.enabled {
                         reset_status(&status, &status_bus).await;
                         continue;

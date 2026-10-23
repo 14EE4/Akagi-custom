@@ -149,10 +149,12 @@ export type AutoQueueConfig = {
   max_matches: number
   min_delay_sec: number
   max_delay_sec: number
+  initial_delay_ms?: number
   confirm_clicks?: number
   confirm_delay_ms?: number
   confirm_x?: number
   confirm_y?: number
+  rematch_delay_ms?: number
   rematch_x?: number
   rematch_y?: number
   modal_delay_ms?: number

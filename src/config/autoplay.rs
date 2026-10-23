@@ -246,9 +246,9 @@ pub struct AutoQueueConfig {
     /// Maximum random delay before clicking rematch/next game (seconds). Default: 15
     pub max_delay_sec: u32,
 
-    /// Initial delay in ms after game end before the first confirm click. Default: 3000
+    /// Initial delay in ms after game end before the first confirm click. Default: 10000 (10s)
     pub initial_delay_ms: u32,
-    /// Number of confirm ("확인") clicks to advance through settlement screens (2 for bonded/contracted characters, 3 for normal). Default: 2
+    /// Number of confirm ("확인") clicks to advance through settlement screens (2 for normal characters, 3 for bonded/contracted). Default: 2
     pub confirm_clicks: u32,
     /// Delay between confirm clicks in ms. Default: 3000
     pub confirm_delay_ms: u32,
@@ -259,7 +259,7 @@ pub struct AutoQueueConfig {
 
     /// Delay in ms after settlement screens before clicking rematch. Default: 2500
     pub rematch_delay_ms: u32,
-    /// Normalized X coordinate of the rematch ("한번더") button. Default: 11.2
+    /// Normalized X coordinate of the rematch ("한번더") button. Default: 12.0
     pub rematch_x: f64,
     /// Normalized Y coordinate of the rematch ("한번더") button. Default: 8.2
     pub rematch_y: f64,
@@ -281,13 +281,13 @@ impl Default for AutoQueueConfig {
             max_matches: 0,
             min_delay_sec: 8,
             max_delay_sec: 15,
-            initial_delay_ms: 3000,
+            initial_delay_ms: 10000,
             confirm_clicks: 2,
             confirm_delay_ms: 3000,
             confirm_x: 13.9,
             confirm_y: 8.2,
             rematch_delay_ms: 2500,
-            rematch_x: 11.2,
+            rematch_x: 12.0,
             rematch_y: 8.2,
             modal_delay_ms: 2200,
             modal_yes_x: 6.9,

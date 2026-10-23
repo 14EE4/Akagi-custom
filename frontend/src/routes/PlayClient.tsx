@@ -53,13 +53,13 @@ export function PlayClient() {
     max_matches: 0,
     min_delay_sec: 8,
     max_delay_sec: 15,
-    initial_delay_ms: 3000,
+    initial_delay_ms: 10000,
     confirm_clicks: 2,
     confirm_delay_ms: 3000,
     confirm_x: 13.9,
     confirm_y: 8.2,
     rematch_delay_ms: 2500,
-    rematch_x: 11.2,
+    rematch_x: 12.0,
     rematch_y: 8.2,
     modal_delay_ms: 2200,
     modal_yes_x: 6.9,
@@ -78,13 +78,13 @@ export function PlayClient() {
       max_matches: currentAq?.max_matches ?? 0,
       min_delay_sec: currentAq?.min_delay_sec ?? 8,
       max_delay_sec: currentAq?.max_delay_sec ?? 15,
-      initial_delay_ms: currentAq?.initial_delay_ms ?? 3000,
+      initial_delay_ms: currentAq?.initial_delay_ms ?? 10000,
       confirm_clicks: currentAq?.confirm_clicks ?? 2,
       confirm_delay_ms: currentAq?.confirm_delay_ms ?? 3000,
       confirm_x: currentAq?.confirm_x ?? 13.9,
       confirm_y: currentAq?.confirm_y ?? 8.2,
       rematch_delay_ms: currentAq?.rematch_delay_ms ?? 2500,
-      rematch_x: currentAq?.rematch_x ?? 11.2,
+      rematch_x: currentAq?.rematch_x ?? 12.0,
       rematch_y: currentAq?.rematch_y ?? 8.2,
       modal_delay_ms: currentAq?.modal_delay_ms ?? 2200,
       modal_yes_x: currentAq?.modal_yes_x ?? 6.9,
@@ -100,13 +100,13 @@ export function PlayClient() {
       max_matches: currentAq?.max_matches ?? 0,
       min_delay_sec: currentAq?.min_delay_sec ?? 8,
       max_delay_sec: currentAq?.max_delay_sec ?? 15,
-      initial_delay_ms: currentAq?.initial_delay_ms ?? 3000,
+      initial_delay_ms: currentAq?.initial_delay_ms ?? 10000,
       confirm_clicks: currentAq?.confirm_clicks ?? 2,
       confirm_delay_ms: currentAq?.confirm_delay_ms ?? 3000,
       confirm_x: currentAq?.confirm_x ?? 13.9,
       confirm_y: currentAq?.confirm_y ?? 8.2,
       rematch_delay_ms: currentAq?.rematch_delay_ms ?? 2500,
-      rematch_x: currentAq?.rematch_x ?? 11.2,
+      rematch_x: currentAq?.rematch_x ?? 12.0,
       rematch_y: currentAq?.rematch_y ?? 8.2,
       modal_delay_ms: currentAq?.modal_delay_ms ?? 2200,
       modal_yes_x: currentAq?.modal_yes_x ?? 6.9,
@@ -386,12 +386,25 @@ export function PlayClient() {
                   key={idx}
                   className={
                     idx === 0
-                      ? 'inline-flex items-center gap-1 rounded px-2 py-0.5 font-semibold bg-primary/15 text-primary border border-primary/30 whitespace-nowrap'
-                      : 'inline-flex items-center gap-1 rounded px-1.5 py-0.5 bg-muted text-muted-foreground whitespace-nowrap'
+                      ? 'inline-flex items-center gap-1.5 rounded px-2 py-0.5 font-semibold bg-primary/15 text-primary border border-primary/30 whitespace-nowrap shadow-xs'
+                      : 'inline-flex items-center gap-1 rounded px-1.5 py-0.5 bg-muted text-muted-foreground border border-border/40 whitespace-nowrap'
                   }
                 >
-                  <span>{item.pais?.join(' ') || item.tiles || '—'}</span>
-                  {item.label && <span className="opacity-85">({item.label})</span>}
+                  <span className={idx === 0 ? 'text-primary font-bold' : ''}>
+                    {item.pais?.join(' ') || item.tiles || '—'}
+                  </span>
+                  {item.label && <span className="opacity-75 text-[10px]">({item.label})</span>}
+                  {item.value && (
+                    <span
+                      className={
+                        idx === 0
+                          ? 'font-mono text-[11px] font-bold px-1 rounded bg-primary/20 text-primary'
+                          : 'font-mono text-[10px] font-medium text-foreground/80'
+                      }
+                    >
+                      {item.value}
+                    </span>
+                  )}
                 </span>
               ))
             )}
@@ -714,7 +727,7 @@ export function PlayClient() {
                         className="h-5 text-[10px] px-2 py-0 flex-1 font-semibold"
                         onClick={() => setAqDraft({ ...aqDraft, confirm_clicks: 2 })}
                       >
-                        계약 작사 (2회)
+                        일반 작사 (2회)
                       </Button>
                       <Button
                         size="sm"
@@ -722,7 +735,7 @@ export function PlayClient() {
                         className="h-5 text-[10px] px-2 py-0 flex-1 font-semibold"
                         onClick={() => setAqDraft({ ...aqDraft, confirm_clicks: 3 })}
                       >
-                        일반 작사 (3회)
+                        계약 작사 (3회)
                       </Button>
                       <Input
                         type="number"

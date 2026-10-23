@@ -158,9 +158,12 @@ pub async fn update_config(
         let rt = state.runtime.clone();
         let syncs = state.syncs_in_flight.clone();
         let started_flag = state.bot_manager_started.clone();
+        let (bot_tx, bot_rx) = tokio::sync::mpsc::channel(16);
+        let bot_control = state.bot_control.clone();
         tauri::async_runtime::spawn(async move {
+            *bot_control.lock().await = Some(bot_tx);
             if let Err(e) =
-                crate::bot::run_bot_manager(cfg_for_bot, events, resp, bs, nb, inspector, rt, syncs)
+                crate::bot::run_bot_manager(cfg_for_bot, events, resp, bs, nb, inspector, rt, syncs, Some(bot_rx))
                     .await
             {
                 tracing::error!("Bot manager failed: {e:#}");
@@ -1745,6 +1748,20 @@ fn persist_config(config: &AppConfig, path: &Path) -> std::io::Result<()> {
 
 /// Pre-builds the handler list for `tauri::generate_handler!`. Keep in
 /// sync when adding commands.
+#[tauri::command]
+pub async fn resync_bot(state: State<'_, AppState>) -> CmdResult<()> {
+    tracing::info!("resync_bot command invoked from UI");
+    let guard = state.bot_control.lock().await;
+    if let Some(tx) = guard.as_ref() {
+        let _ = tx.send(crate::bot::BotControlMsg::Resync).await;
+    }
+    let _ = state.notify_bus.send(
+        crate::schema::Notification::info("봇 재동기화")
+            .body("봇 프로세스를 재시작하고 대국 상태를 재동기화했습니다.")
+    );
+    Ok(())
+}
+
 #[macro_export]
 macro_rules! ipc_handlers {
     () => {
@@ -1764,6 +1781,7 @@ macro_rules! ipc_handlers {
             $crate::ipc::commands::start_capture,
             $crate::ipc::commands::stop_capture,
             $crate::ipc::commands::restart_capture,
+            $crate::ipc::commands::resync_bot,
             $crate::ipc::commands::get_capture_status,
             $crate::ipc::commands::detect_system_chrome,
             $crate::ipc::commands::list_cft_installed,

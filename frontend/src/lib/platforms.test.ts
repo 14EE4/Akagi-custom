@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PLATFORMS, isKnownDefaultStartUrl, platformInfo } from './platforms'
+import { isKnownDefaultStartUrl, platformInfo } from './platforms'
 
 describe('platforms metadata', () => {
   it('defines Majsoul with JP default and regional presets', () => {

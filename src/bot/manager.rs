@@ -50,6 +50,11 @@ use std::time::Instant;
 use tokio::sync::{broadcast, Mutex, RwLock};
 use tracing::{debug, error, info, warn};
 
+#[derive(Debug, Clone, Copy)]
+pub enum BotControlMsg {
+    Resync,
+}
+
 pub struct BotManager {
     /// Python runtime for `mjai_bot/*` subprocess bots. `None` when no
     /// python3+uv runtime was found — the built-in native bot still works;
@@ -159,25 +164,49 @@ impl BotManager {
     /// Caller subscribes rather than passing the `Sender` so the manager
     /// doesn't keep the channel alive itself — makes shutdown deterministic
     /// when the proxy stops producing.
-    pub async fn run(mut self, mut rx: broadcast::Receiver<TrackedEvent>) -> Result<()> {
+    pub async fn run(
+        mut self,
+        mut rx: broadcast::Receiver<TrackedEvent>,
+        mut control_rx: Option<tokio::sync::mpsc::Receiver<BotControlMsg>>,
+    ) -> Result<()> {
         info!("bot manager subscribed to post-tracker bus; waiting for start_game (active bot is read from config at each start_game)");
         // Surface the initial state to any IPC consumer that subscribes
         // late. Send is no-op when no subscribers exist yet.
         self.emit_status(BotStatus::Idle);
         loop {
-            match rx.recv().await {
-                Ok(ev) => {
-                    if let Err(e) = self.handle_tracked(ev).await {
-                        error!("bot manager: {e:#}");
-                        self.recover_runner_after_error().await;
+            tokio::select! {
+                ev = rx.recv() => {
+                    match ev {
+                        Ok(ev) => {
+                            if let Err(e) = self.handle_tracked(ev).await {
+                                error!("bot manager: {e:#}");
+                                self.recover_runner_after_error().await;
+                            }
+                        }
+                        Err(broadcast::error::RecvError::Lagged(n)) => {
+                            warn!("bot manager lagged behind the post-tracker bus by {n} events");
+                        }
+                        Err(broadcast::error::RecvError::Closed) => {
+                            info!("post-tracker bus closed; bot manager exiting");
+                            return Ok(());
+                        }
                     }
                 }
-                Err(broadcast::error::RecvError::Lagged(n)) => {
-                    warn!("bot manager lagged behind the post-tracker bus by {n} events");
-                }
-                Err(broadcast::error::RecvError::Closed) => {
-                    info!("post-tracker bus closed; bot manager exiting");
-                    return Ok(());
+                cmd = async {
+                    match &mut control_rx {
+                        Some(c) => c.recv().await,
+                        None => std::future::pending().await,
+                    }
+                } => {
+                    match cmd {
+                        Some(BotControlMsg::Resync) => {
+                            info!("bot manager received manual resync request from UI");
+                            self.recover_runner_after_error().await;
+                        }
+                        None => {
+                            // Control channel closed
+                        }
+                    }
                 }
             }
         }
@@ -1666,7 +1695,7 @@ mod tests {
         let (mock, _calls) = MockBotRunner::new(vec![]);
         mgr.runner = Some(Box::new(mock));
 
-        let handle = tokio::spawn(async move { mgr.run(rx).await });
+        let handle = tokio::spawn(async move { mgr.run(rx, None).await });
         drop(events); // last sender → channel closes
         tokio::time::timeout(std::time::Duration::from_secs(1), handle)
             .await

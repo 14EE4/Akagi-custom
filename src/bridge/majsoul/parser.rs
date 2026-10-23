@@ -61,9 +61,13 @@ pub struct ParsedMessage {
     pub payload: JsonValue,
 }
 
-/// Per-flow parser. Holds a `pending` map for request/response correlation.
+/// Per-flow parser. Holds a `pending` map for request/response correlation,
+/// plus an `early_responses` buffer to handle out-of-order CDP frame arrival
+/// where a response frame arrives slightly before its matching request frame.
 pub struct LiqiParser {
     pending: HashMap<u16, (Arc<str>, MessageDescriptor)>,
+    early_responses: HashMap<u16, (std::time::Instant, Vec<u8>)>,
+    ready_responses: Vec<ParsedMessage>,
 }
 
 impl LiqiParser {
@@ -73,14 +77,22 @@ impl LiqiParser {
         LazyLock::force(&ROUTES);
         Self {
             pending: HashMap::new(),
+            early_responses: HashMap::new(),
+            ready_responses: Vec::new(),
         }
     }
 
-    pub fn parse(&mut self, buf: &[u8]) -> Result<ParsedMessage> {
+    /// Drain any responses that arrived early and were subsequently matched
+    /// and decoded when their corresponding request was parsed.
+    pub fn drain_ready_responses(&mut self) -> Vec<ParsedMessage> {
+        std::mem::take(&mut self.ready_responses)
+    }
+
+    pub fn parse(&mut self, buf: &[u8]) -> Result<Option<ParsedMessage>> {
         ensure!(!buf.is_empty(), "empty frame");
         match buf[0] {
-            1 => self.parse_notify(buf),
-            2 => self.parse_request(buf),
+            1 => self.parse_notify(buf).map(Some),
+            2 => self.parse_request(buf).map(Some),
             3 => self.parse_response(buf),
             t => bail!("invalid liqi message type byte: {t}"),
         }
@@ -107,8 +119,35 @@ impl LiqiParser {
         let method_name: Arc<str> = Arc::from(wrapper.name.as_str());
         let (req_desc, resp_desc) = lookup_method_types(&wrapper.name)?;
         let payload = decode_to_json(&req_desc, &wrapper.data)?;
-        self.pending
-            .insert(msg_id, (method_name.clone(), resp_desc));
+
+        // If a matching response arrived early on the WebSocket/CDP stream,
+        // redeem and decode it immediately.
+        if let Some((_, resp_data)) = self.early_responses.remove(&msg_id) {
+            match decode_to_json(&resp_desc, &resp_data) {
+                Ok(resp_payload) => {
+                    tracing::info!(
+                        target: "akagi::bridge::majsoul",
+                        "redeemed out-of-order early response for msg_id={msg_id} ({method_name})"
+                    );
+                    self.ready_responses.push(ParsedMessage {
+                        msg_type: MessageType::Response,
+                        msg_id: Some(msg_id),
+                        method_name: method_name.clone(),
+                        payload: resp_payload,
+                    });
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        target: "akagi::bridge::majsoul",
+                        "failed to decode early response for msg_id={msg_id}: {e:#}"
+                    );
+                }
+            }
+        } else {
+            self.pending
+                .insert(msg_id, (method_name.clone(), resp_desc));
+        }
+
         Ok(ParsedMessage {
             msg_type: MessageType::Request,
             msg_id: Some(msg_id),
@@ -117,7 +156,7 @@ impl LiqiParser {
         })
     }
 
-    fn parse_response(&mut self, buf: &[u8]) -> Result<ParsedMessage> {
+    fn parse_response(&mut self, buf: &[u8]) -> Result<Option<ParsedMessage>> {
         ensure!(buf.len() >= 3, "response frame too short");
         let msg_id = u16::from_le_bytes([buf[1], buf[2]]);
         let wrapper = decode_wrapper(&buf[3..])?;
@@ -126,17 +165,33 @@ impl LiqiParser {
             "response wrapper should have empty name, got {:?}",
             wrapper.name
         );
-        let (method_name, resp_desc) = self
-            .pending
-            .remove(&msg_id)
-            .with_context(|| format!("no pending request for response msg_id={msg_id}"))?;
+        let Some((method_name, resp_desc)) = self.pending.remove(&msg_id) else {
+            // Out-of-order arrival: Response arrived before its matching Request.
+            // Buffer in early_responses instead of dropping it as an error.
+            self.clean_stale_early_responses();
+            tracing::info!(
+                target: "akagi::bridge::majsoul",
+                "buffered early response msg_id={msg_id} awaiting request"
+            );
+            self.early_responses.insert(
+                msg_id,
+                (std::time::Instant::now(), wrapper.data),
+            );
+            return Ok(None);
+        };
         let payload = decode_to_json(&resp_desc, &wrapper.data)?;
-        Ok(ParsedMessage {
+        Ok(Some(ParsedMessage {
             msg_type: MessageType::Response,
             msg_id: Some(msg_id),
             method_name,
             payload,
-        })
+        }))
+    }
+
+    fn clean_stale_early_responses(&mut self) {
+        let now = std::time::Instant::now();
+        // Drop any unredeemed early response older than 5 seconds
+        self.early_responses.retain(|_, (t, _)| now.duration_since(*t).as_secs() < 5);
     }
 }
 
@@ -455,5 +510,53 @@ mod tests {
             })
         }) == Some(expected.iter().map(|s| s.to_string()).collect());
         assert!(!same, "XOR path unexpectedly produced the plain tehai");
+    }
+    #[test]
+    fn early_response_buffered_and_redeemed_by_subsequent_request() {
+        let mut parser = LiqiParser::new();
+
+        // 1. Construct Response frame for msg_id=64 (type byte 3, msg_id LE u16, empty-name wrapper)
+        let resp_wrapper = make_test_wrapper("", &[]);
+        let mut resp_frame = vec![3, 64, 0];
+        resp_frame.extend(resp_wrapper);
+
+        // 2. Parse response FIRST (out-of-order arrival)
+        let res1 = parser.parse(&resp_frame).expect("early response should not error");
+        assert!(res1.is_none(), "early response must be buffered as None");
+        assert!(parser.drain_ready_responses().is_empty());
+
+        // 3. Construct Request frame for msg_id=64 (type byte 2, msg_id LE u16, method wrapper)
+        let req_wrapper = make_test_wrapper(".lq.Lobby.fetchConnectionInfo", &[]);
+        let mut req_frame = vec![2, 64, 0];
+        req_frame.extend(req_wrapper);
+
+        // 4. Parse request SECOND (arriving 1ms later)
+        let res2 = parser.parse(&req_frame).expect("request should parse");
+        let req_msg = res2.expect("request message should be present");
+        assert_eq!(req_msg.msg_type, MessageType::Request);
+        assert_eq!(req_msg.msg_id, Some(64));
+
+        // 5. Verify the early response was automatically redeemed and decoded!
+        let redeemed = parser.drain_ready_responses();
+        assert_eq!(redeemed.len(), 1, "early response should be redeemed");
+        let resp_msg = &redeemed[0];
+        assert_eq!(resp_msg.msg_type, MessageType::Response);
+        assert_eq!(resp_msg.msg_id, Some(64));
+        assert_eq!(resp_msg.method_name.as_ref(), ".lq.Lobby.fetchConnectionInfo");
+    }
+
+    fn make_test_wrapper(name: &str, data: &[u8]) -> Vec<u8> {
+        #[derive(::prost::Message)]
+        struct Raw {
+            #[prost(string, tag = "1")]
+            name: ::prost::alloc::string::String,
+            #[prost(bytes = "vec", tag = "2")]
+            data: ::prost::alloc::vec::Vec<u8>,
+        }
+        let raw = Raw {
+            name: name.to_string(),
+            data: data.to_vec(),
+        };
+        raw.encode_to_vec()
     }
 }

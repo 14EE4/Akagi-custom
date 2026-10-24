@@ -73,6 +73,8 @@ pub struct GameTracker {
     /// Total events fed since process start. Useful for "is the bridge
     /// alive?" checks; not reset on game boundaries.
     pub events_seen: u64,
+    /// Whether an active game is currently running (set true on StartGame, false on EndGame).
+    is_active: bool,
 }
 
 impl GameTracker {
@@ -82,6 +84,7 @@ impl GameTracker {
             rule: GameRule::default_tenhou(),
             our_seat: None,
             events_seen: 0,
+            is_active: false,
         }
     }
 
@@ -95,6 +98,7 @@ impl GameTracker {
             id, num_players, ..
         } = ev
         {
+            self.is_active = true;
             // Fresh game → fresh state. Constructor seeds round 0 with the
             // mode-appropriate starting score (25k for 4p, 35k for 3p).
             self.state = Some(match *num_players {
@@ -144,6 +148,10 @@ impl GameTracker {
             }
             _ => None,
         };
+
+        if matches!(ev, AkagiEvent::EndGame { .. }) {
+            self.is_active = false;
+        }
 
         let Some(ri) = convert::to_riichienv(ev)? else {
             return Ok(()); // Skipped (e.g. MjaiEvent::None).
@@ -219,6 +227,11 @@ impl GameTracker {
 
     /// Snapshot of the current state. Returns `None` if no game has
     /// started yet.
+    /// Returns true if a match is actively in progress (between StartGame and EndGame).
+    pub fn is_game_active(&self) -> bool {
+        self.is_active && self.state.is_some()
+    }
+
     pub fn snapshot(&self) -> Option<GameStateSnapshot> {
         self.state.as_ref().map(|tg| match tg {
             TrackedGame::Four(s) => GameStateSnapshot::from_state(s, self.our_seat),

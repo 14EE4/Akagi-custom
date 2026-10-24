@@ -52,20 +52,10 @@
   - 모든 이슈 등록, 코드 푸시, 기능 제안 및 작업 관리는 **오직 사용자 개인 포크 저장소인 `origin` (`14EE4/Akagi-custom`)에서만 수행**합니다.
   - `upstream`은 오직 공식 릴리스 및 최신 순정 코드를 읽어오기 위한 참조용(`git fetch upstream`, `git pull upstream v3`)으로만 사용합니다.
 - **원격 저장소 및 브랜치 분리**:
-  - `main` 브랜치 (`origin/main`, `https://github.com/14EE4/Akagi-custom.git`): 커스텀 패치 및 빌드된 `akagi.exe`가 포함된 **기본 작업/실행 브랜치**
-  - `v3` 브랜치 (`upstream/v3`, `https://github.com/shinkuan/Akagi.git`): **공식 원본 순정 브랜치 (읽기 전용 참조)**
+  - `dev` 브랜치 (`origin/dev`): **모든 기능 개발, 수정 및 테스트 빌드가 이루어지는 기본 개발 브랜치**
+  - `main` 브랜치 (`origin/main`): 테스트 및 실전 검증이 완료된 안정된 릴리스 브랜치
+  - `v3` 브랜치 (`upstream/v3`): 공식 원본 순정 브랜치 (읽기 전용 참조)
+- **★ [핵심 규칙] `main` 브랜치 사전 머지 절대 금지**:
+  - **모든 작업은 반드시 `dev` 브랜치(또는 피처 브랜치)에서 진행하고 `dev`에만 반영**합니다.
+  - **사용자가 직접 테스트 및 실전 검증을 완료하고 명시적으로 승인하기 전까지는 `main` 브랜치에 절대 먼저 머지하거나 푸시하지 않습니다.**
 - **앱 내 자동 업데이트(UI의 업데이트 버튼) 사용 주의**: GitHub Releases의 순정 `akagi.exe`를 내려받아 덮어쓰므로 위 커스텀 패치가 사라집니다.
-- **공식 레포(`upstream/v3`) 최신 사항을 `main` 브랜치에 병합 및 배포하는 절차 (데스크톱)**:
-  ```powershell
-  git checkout main
-  git pull upstream v3
-  $env:PROTOC = "C:\Users\pyeon\.gemini\antigravity-cli\brain\e09dcb65-b75c-45dc-9ccd-1b8d0157081b\scratch\protoc\bin\protoc.exe"
-  Stop-Process -Name "akagi" -Force -ErrorAction SilentlyContinue
-  cargo build --release --features custom-protocol
-  Copy-Item -Path "target\release\akagi.exe" -Destination "akagi.exe" -Force
-  git add -A
-  git commit -m "chore: merge upstream/v3 and rebuild akagi.exe"
-  git push origin main
-  ```
-- **노트북에서 동기화하는 절차**:
-  - `main` 브랜치에서 `git pull origin main` (또는 `git pull`)만 실행하면 빌드 없이 최신 `akagi.exe`와 `mortal` 스크립트가 즉시 반영됩니다.

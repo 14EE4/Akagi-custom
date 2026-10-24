@@ -1462,10 +1462,19 @@ export function PlayClient() {
                         : `진행: ${autoQueueStatus.current_matches} 판 완료`}
                     </span>
                   </div>
-                  <Switch
-                    checked={autoQueueStatus.enabled}
-                    onCheckedChange={(checked) => void toggleAutoQueue(checked)}
-                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => openAutoQueueDialog()}
+                      className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                      title="자동 매칭 설정"
+                    >
+                      <Settings2 className="h-3.5 w-3.5" />
+                    </button>
+                    <Switch
+                      checked={autoQueueStatus.enabled}
+                      onCheckedChange={(checked) => void toggleAutoQueue(checked)}
+                    />
+                  </div>
                 </div>
 
                 {autoQueueStatus.enabled && (
@@ -1499,59 +1508,7 @@ export function PlayClient() {
                 )}
               </div>
 
-              {/* 2. Quick Action Buttons */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground px-0.5">
-                  <span>빠른 조작</span>
-                  <button
-                    onClick={() => openAutoQueueDialog()}
-                    className="text-[10px] text-primary hover:underline flex items-center gap-0.5"
-                  >
-                    <Settings2 className="h-3 w-3" />
-                    설정
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-[11px] px-2 font-medium bg-card hover:bg-primary/10 border-border"
-                    onClick={() => void testSingleClick(aqDraft.confirm_x, aqDraft.confirm_y, '확인')}
-                    title="우하단 확인/정산 탈출 클릭"
-                  >
-                    확인 1회 클릭
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-[11px] px-2 font-medium text-emerald-400 hover:text-emerald-300 border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10"
-                    onClick={() => void testStep('check_screen')}
-                    title="현재 화면 상태 감지"
-                  >
-                    화면상태 검사
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-[11px] px-2 font-medium bg-card hover:bg-primary/10 border-border"
-                    onClick={() => void testSingleClick(aqDraft.rank_match_x, aqDraft.rank_match_y, '단위전')}
-                    title="단위전 클릭"
-                  >
-                    1.단위전
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-[11px] px-2 font-medium bg-card hover:bg-primary/10 border-border"
-                    onClick={() => void testSingleClick(aqDraft.round_type_x, aqDraft.round_type_y, '3.4인반장')}
-                    title="은탁 4인 반장전 클릭"
-                  >
-                    2.은탁 4인반장
-                  </Button>
-                </div>
-              </div>
-
-              {/* 3. Realtime Logs & Notifications Feed */}
+              {/* 2. Realtime Logs & Notifications Feed */}
               <div className="space-y-1.5 pt-1 flex flex-col flex-1 min-h-[200px]">
                 <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground px-0.5">
                   <span>실시간 알림 & 로그</span>

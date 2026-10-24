@@ -296,6 +296,12 @@ pub async fn evaluate_majsoul_screen_state(page: &Page) -> Result<MajsoulScreenS
         .value()
         .and_then(|v| v.as_str())
         .unwrap_or("unknown");
+
+    // 대국 종료 후 아직 로비 복귀 및 정산 확인 클릭을 완료하지 않았다면 무조건 GameEnd로 판정
+    if crate::bridge::majsoul::is_settling() || crate::bridge::majsoul::last_game_end_ms() > 0 {
+        return Ok(MajsoulScreenState::GameEnd);
+    }
+
     Ok(match val_str {
         "lobby" => MajsoulScreenState::Lobby,
         "game_end" => MajsoulScreenState::GameEnd,

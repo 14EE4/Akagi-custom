@@ -188,6 +188,9 @@ pub async fn auto_queue_watcher(
                         let mut aborted = false;
                         let mut is_in_lobby = false;
 
+                        // 정산 화면을 넘기기 위한 최소 필수 확인 횟수 (기본 2~3회는 무조건 클릭 보장)
+                        let min_confirms = aq.confirm_clicks.clamp(2, 5);
+
                         // 메인 화면(로비)에 도달할 때까지 확인 버튼을 반복 클릭 (최대 max_confirms회)
                         for click_idx in 1..=max_confirms {
                             if !cfg.read().await.autoplay.auto_queue.enabled {
@@ -195,8 +198,8 @@ pub async fn auto_queue_watcher(
                                 break;
                             }
 
-                            // 이미 로비 패킷을 수신했다면 클릭을 멈추고 바로 다음 단계로!
-                            if crate::bridge::majsoul::last_lobby_packet_ms() >= game_end_time_ms {
+                            // 최소 필수 클릭(min_confirms)을 완료한 이후에만 로비 패킷으로 탈출 허용 (0회/1회 조기 탈출 방지)
+                            if click_idx > min_confirms && crate::bridge::majsoul::last_lobby_packet_ms() >= game_end_time_ms {
                                 is_in_lobby = true;
                                 info!(
                                     "auto_queue: 로비(메인화면) 진입 확인 완료! ({}회 클릭 후 감지)",
@@ -224,7 +227,7 @@ pub async fn auto_queue_watcher(
 
                             tokio::time::sleep(confirm_delay).await;
 
-                            if crate::bridge::majsoul::last_lobby_packet_ms() >= game_end_time_ms {
+                            if click_idx >= min_confirms && crate::bridge::majsoul::last_lobby_packet_ms() >= game_end_time_ms {
                                 is_in_lobby = true;
                                 info!(
                                     "auto_queue: 로비(메인화면) 진입 확인 완료! ({click_idx}회 클릭 후 감지)"

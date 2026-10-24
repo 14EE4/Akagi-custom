@@ -17,7 +17,7 @@ export function Toaster() {
   return (
     <SonnerToaster
       theme="dark"
-      position="bottom-right"
+      position="top-right"
       richColors={false}
       closeButton
       duration={DEFAULT_DURATION_MS}

@@ -246,11 +246,19 @@ pub async fn evaluate_majsoul_screen_state(page: &Page) -> Result<MajsoulScreenS
                 (u && u.UI_Desktop && u.UI_Desktop.Inst && u.UI_Desktop.Inst.visible !== false && u.UI_Desktop.Inst.enable !== false)
             );
 
-            // 2. Legacy LayaAir Settlement / GameEnd check
-            if (u && u.UI_GameEnd && u.UI_GameEnd.Inst) {
-                const ge = u.UI_GameEnd.Inst;
-                if (ge.visible || ge.enable || ge.active) {
-                    return 'game_end';
+            // 2. Settlement / GameEnd / ScoreChange check
+            if (u) {
+                if (u.UI_GameEnd && u.UI_GameEnd.Inst) {
+                    const ge = u.UI_GameEnd.Inst;
+                    if (ge.visible || ge.enable || ge.active) {
+                        return 'game_end';
+                    }
+                }
+                if (u.UI_ScoreChange && u.UI_ScoreChange.Inst) {
+                    const sc = u.UI_ScoreChange.Inst;
+                    if (sc.visible || sc.enable || sc.active) {
+                        return 'game_end';
+                    }
                 }
             }
 
@@ -258,26 +266,17 @@ pub async fn evaluate_majsoul_screen_state(page: &Page) -> Result<MajsoulScreenS
                 return 'in_game';
             }
 
-            // 3. Legacy LayaAir Lobby check
+            // 3. Strict Lobby check: UI_Lobby가 실제로 visible 및 active 상태일 때만 로비로 판정
             if (u && u.UI_Lobby && u.UI_Lobby.Inst) {
                 const lb = u.UI_Lobby.Inst;
-                const is_visible = (lb.visible !== false) && (lb._visible !== false) && (lb.enable !== false);
-                if (is_visible || lb.page_lobby || lb.topbar) {
+                const is_active = (lb.active !== false) && (lb.visible !== false) && (lb._visible !== false) && (lb.enable !== false);
+                const has_lobby_ui = !!(lb.page_lobby || lb.topbar || lb.btn_rank || lb.btn_match || lb._topbar);
+                if (is_active && has_lobby_ui) {
                     return 'lobby';
                 }
             }
 
-            if (u && !in_desktop) {
-                return 'lobby';
-            }
-
-            // 4. Unity WebGL fallback: Canvas check
-            const canvas = document.getElementsByTagName('canvas')[0];
-            if (canvas && canvas.width > 0 && canvas.height > 0) {
-                // If game canvas exists in Unity WebGL mode without desktop active, default to lobby
-                return 'lobby';
-            }
-
+            // Fallback으로 무조건 lobby를 반환하던 이전 버그 제거: 불확실하면 unknown 반환
             return 'unknown';
         } catch (_) {
             return 'unknown';

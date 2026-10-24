@@ -836,7 +836,14 @@
     "majsoul_preset_en": "Global / English (EN)",
     "majsoul_preset_cn": "China (CN)",
     "tenhou_preset_web4": "Web /4/ (HTML5)",
-    "tenhou_preset_web3": "Web /3/"
+    "tenhou_preset_web3": "Web /3/",
+    "server_select": "Select Server",
+    "launch_game": "Launch Mahjong Soul",
+    "server_change_confirm_title": "Change Server",
+    "server_change_confirm_desc": "Switching server will restart the game browser. Continue?",
+    "auto_launch_label": "Auto-launch browser on startup",
+    "auto_launch_desc": "Turn off to prevent duplicate logins and forced logouts on other devices (mobile, etc.).",
+    "auto_launch_prevent_conflict": "Prevent duplicate login on other devices"
   },
   "updates": {
     "toast": {

@@ -836,7 +836,14 @@
     "majsoul_preset_en": "國際服 / 英文 (EN)",
     "majsoul_preset_cn": "國服 (CN)",
     "tenhou_preset_web4": "網頁版 /4/ (HTML5)",
-    "tenhou_preset_web3": "網頁版 /3/"
+    "tenhou_preset_web3": "網頁版 /3/",
+    "server_select": "選擇伺服器",
+    "launch_game": "啟動雀魂",
+    "server_change_confirm_title": "更換伺服器",
+    "server_change_confirm_desc": "切換伺服器將重啟遊戲瀏覽器，是否繼續？",
+    "auto_launch_label": "啟動時自動開啟瀏覽器",
+    "auto_launch_desc": "關閉後可防止在手機等其他設備上遊戲時因重複登入被強制離線。",
+    "auto_launch_prevent_conflict": "防止其他設備重複登入"
   },
   "updates": {
     "toast": {

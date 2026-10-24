@@ -27,6 +27,7 @@ import {
 } from '@/tiles/defaults'
 import { renderTile } from '@/tiles/registry'
 import { AddTileMenu } from '@/components/AddTileMenu'
+import { ServerSelector } from '@/components/ServerSelector'
 import { DashboardOnboardingDialog } from '@/components/DashboardOnboardingDialog'
 import { OverlayToggle } from '@/components/OverlayToggle'
 
@@ -94,6 +95,7 @@ export function GameDashboard() {
       <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/20">
         <h1 className="text-sm font-semibold tracking-wide uppercase text-muted-foreground">{t('nav.game')}</h1>
         <div className="ml-auto flex items-center gap-2">
+          <ServerSelector variant="header" />
           <OverlayToggle />
           <AddTileMenu bp={bp} />
           <Button variant="ghost" size="sm" onClick={reset} className="text-xs">

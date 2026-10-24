@@ -1351,6 +1351,14 @@ function CaptureCard({
               {t('settings.block_telemetry_chromium_hint')}
             </span>
             <Toggle
+              label={t('platform.auto_launch_label')}
+              value={chromium.auto_launch ?? true}
+              onChange={(v) => setChromium({ auto_launch: v })}
+            />
+            <span className="text-xs text-muted-foreground">
+              {t('platform.auto_launch_desc')}
+            </span>
+            <Toggle
               label={t('settings.force_cft')}
               value={chromium.force_cft}
               onChange={(v) => setChromium({ force_cft: v })}

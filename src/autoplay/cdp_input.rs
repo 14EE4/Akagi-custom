@@ -231,21 +231,48 @@ pub enum MajsoulScreenState {
     Unknown,
 }
 
-/// Evaluates current Majsoul UI state by probing `uiscript` Laya GUI singletons.
+/// Evaluates current Majsoul UI state by probing `uiscript`, `view`, and Laya GUI singletons.
 pub async fn evaluate_majsoul_screen_state(page: &Page) -> Result<MajsoulScreenState> {
     let expr = r#"(()=>{
         try {
-            if (typeof uiscript !== 'undefined') {
-                if (uiscript.UI_Lobby && uiscript.UI_Lobby.Inst && uiscript.UI_Lobby.Inst.enable) {
-                    return 'lobby';
-                }
-                if (uiscript.UI_GameEnd && uiscript.UI_GameEnd.Inst && uiscript.UI_GameEnd.Inst.enable) {
+            const u = typeof uiscript !== 'undefined' ? uiscript : (window.uiscript || null);
+            const v = typeof view !== 'undefined' ? view : (window.view || null);
+            const g = typeof game !== 'undefined' ? game : (window.game || null);
+
+            // 1. In-game check
+            const in_desktop = !!(
+                (v && v.DesktopMgr && v.DesktopMgr.Inst && (v.DesktopMgr.Inst.active || v.DesktopMgr.Inst.mode !== undefined)) ||
+                (g && g.Scene_MJ && g.Scene_MJ.Inst && g.Scene_MJ.Inst.active) ||
+                (u && u.UI_Desktop && u.UI_Desktop.Inst && u.UI_Desktop.Inst.visible !== false && u.UI_Desktop.Inst.enable !== false)
+            );
+
+            // 2. Settlement / GameEnd check
+            if (u && u.UI_GameEnd && u.UI_GameEnd.Inst) {
+                const ge = u.UI_GameEnd.Inst;
+                if (ge.visible || ge.enable || ge.active) {
                     return 'game_end';
                 }
-                if (uiscript.UI_Desktop && uiscript.UI_Desktop.Inst && uiscript.UI_Desktop.Inst.enable) {
-                    return 'in_game';
+            }
+
+            if (in_desktop) {
+                return 'in_game';
+            }
+
+            // 3. Lobby check
+            if (u && u.UI_Lobby && u.UI_Lobby.Inst) {
+                const lb = u.UI_Lobby.Inst;
+                // Check common LayaAir node visibility flags
+                const is_visible = (lb.visible !== false) && (lb._visible !== false) && (lb.enable !== false);
+                if (is_visible || lb.page_lobby || lb.topbar) {
+                    return 'lobby';
                 }
             }
+
+            // Fallback: If uiscript exists and we are not in an active match, we are in the lobby/menu
+            if (u && !in_desktop) {
+                return 'lobby';
+            }
+
             return 'unknown';
         } catch (_) {
             return 'unknown';
@@ -265,6 +292,52 @@ pub async fn evaluate_majsoul_screen_state(page: &Page) -> Result<MajsoulScreenS
         "in_game" => MajsoulScreenState::InGame,
         _ => MajsoulScreenState::Unknown,
     })
+}
+
+/// Detailed diagnostic dump of Majsoul global JavaScript namespaces for debugging.
+pub async fn probe_majsoul_diagnostics(page: &Page) -> Result<String> {
+    let expr = r#"(()=>{
+        try {
+            const u = typeof uiscript !== 'undefined' ? uiscript : (window.uiscript || null);
+            const v = typeof view !== 'undefined' ? view : (window.view || null);
+            const g = typeof game !== 'undefined' ? game : (window.game || null);
+            const info = [];
+
+            if (u) {
+                info.push("uiscript:O");
+                if (u.UI_Lobby) {
+                    info.push("UI_Lobby:O");
+                    if (u.UI_Lobby.Inst) {
+                        const lb = u.UI_Lobby.Inst;
+                        info.push("Inst:O(vis=" + lb.visible + ",en=" + lb.enable + ",act=" + lb.active + ")");
+                    } else {
+                        info.push("Inst:null");
+                    }
+                } else {
+                    info.push("UI_Lobby:X");
+                }
+                if (u.UI_GameEnd) {
+                    info.push("GameEnd:O(Inst=" + !!u.UI_GameEnd.Inst + ")");
+                }
+            } else {
+                info.push("uiscript:X");
+            }
+
+            if (v && v.DesktopMgr) {
+                info.push("DesktopMgr:" + (v.DesktopMgr.Inst ? (v.DesktopMgr.Inst.active ? "active" : "inactive") : "null"));
+            }
+
+            if (typeof Laya !== 'undefined') {
+                info.push("Laya:O");
+            }
+
+            return info.join(", ");
+        } catch (e) {
+            return "ERR:" + e.message;
+        }
+    })()"#;
+    let result = page.evaluate(expr).await.context("CDP evaluate diagnostics")?;
+    Ok(result.value().and_then(|v| v.as_str()).unwrap_or("no diag").to_string())
 }
 
 // ============================================================================

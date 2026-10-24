@@ -2006,7 +2006,7 @@ pub async fn test_auto_queue_step(
                     let _ = notify.send(crate::schema::Notification {
                         level: crate::schema::NotifyLevel::Info,
                         title: "로비 시퀀스 테스트 시작".into(),
-                        body: Some("로비 탈출 -> [단위전] -> [4인 마작] -> [은탁] -> [반장전] 시뮬레이션을 시작합니다.".into()),
+                        body: Some("로비 탈출 -> [단위전] -> [은탁] -> [4인 반장전] 시뮬레이션을 시작합니다.".into()),
                         sticky: false,
                         id: Some("auto-queue-sim".into()),
                     });
@@ -2035,7 +2035,7 @@ pub async fn test_auto_queue_step(
 
                     tokio::time::sleep(std::time::Duration::from_millis(aq.lobby_step_delay_ms as u64)).await;
 
-                    // 2. Click 단위전
+                    // 1. Click 단위전 (11.5, 2.8)
                     let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
                         &ctx,
                         aq.rank_match_x,
@@ -2045,32 +2045,22 @@ pub async fn test_auto_queue_step(
                     ).await;
                     tokio::time::sleep(std::time::Duration::from_millis(aq.lobby_step_delay_ms as u64)).await;
 
-                    // 3. Click 4인 마작
-                    let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
-                        &ctx,
-                        aq.four_player_x,
-                        aq.four_player_y,
-                        "2. 4인 마작",
-                        true,
-                    ).await;
-                    tokio::time::sleep(std::time::Duration::from_millis(aq.lobby_step_delay_ms as u64)).await;
-
-                    // 4. Click 은탁
+                    // 2. Click 은탁 (11.5, 4.6)
                     let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
                         &ctx,
                         aq.room_card_x,
                         aq.room_card_y,
-                        "3. 은탁",
+                        "2. 은탁",
                         true,
                     ).await;
                     tokio::time::sleep(std::time::Duration::from_millis(aq.lobby_step_delay_ms as u64)).await;
 
-                    // 5. Click 반장전
+                    // 3. Click 4인 반장전 (은탁과 위치 동일: 11.5, 4.6)
                     let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
                         &ctx,
                         aq.round_type_x,
                         aq.round_type_y,
-                        "4. 반장전",
+                        "3. 4인 반장전",
                         true,
                     ).await;
 

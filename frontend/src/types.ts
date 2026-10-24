@@ -161,6 +161,18 @@ export type AutoQueueConfig = {
   modal_yes_x?: number
   modal_yes_y?: number
   show_click_indicator?: boolean
+  strategy?: 'lobby' | 'rematch'
+  lobby_confirm_max?: number
+  lobby_confirm_delay_ms?: number
+  rank_match_x?: number
+  rank_match_y?: number
+  four_player_x?: number
+  four_player_y?: number
+  room_card_x?: number
+  room_card_y?: number
+  round_type_x?: number
+  round_type_y?: number
+  lobby_step_delay_ms?: number
 }
 
 export type TestClickResult = {

@@ -217,6 +217,139 @@ pub async fn evaluate_canvas_rect(page: &Page) -> Result<CanvasRect> {
     Ok(rect)
 }
 
+/// Majsoul screen states identified via LayaAir UI hierarchy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MajsoulScreenState {
+    /// In main lobby / menu / room selection.
+    Lobby,
+    /// In post-game settlement / result screens (`UI_GameEnd`).
+    GameEnd,
+    /// In active match (`UI_Desktop`).
+    InGame,
+    /// Unknown / not determined yet.
+    Unknown,
+}
+
+/// Evaluates current Majsoul UI state by probing `uiscript`, `view`, and Laya/Unity singletons.
+pub async fn evaluate_majsoul_screen_state(page: &Page) -> Result<MajsoulScreenState> {
+    let expr = r#"(()=>{
+        try {
+            const u = typeof uiscript !== 'undefined' ? uiscript : (window.uiscript || null);
+            const v = typeof view !== 'undefined' ? view : (window.view || null);
+            const g = typeof game !== 'undefined' ? game : (window.game || null);
+
+            // 1. Legacy LayaAir In-game check
+            const in_desktop = !!(
+                (v && v.DesktopMgr && v.DesktopMgr.Inst && v.DesktopMgr.Inst.active) ||
+                (g && g.Scene_MJ && g.Scene_MJ.Inst && g.Scene_MJ.Inst.active) ||
+                (u && u.UI_Desktop && u.UI_Desktop.Inst && u.UI_Desktop.Inst.visible !== false && u.UI_Desktop.Inst.enable !== false)
+            );
+
+            // 2. Legacy LayaAir Settlement / GameEnd check
+            if (u && u.UI_GameEnd && u.UI_GameEnd.Inst) {
+                const ge = u.UI_GameEnd.Inst;
+                if (ge.visible || ge.enable || ge.active) {
+                    return 'game_end';
+                }
+            }
+
+            if (in_desktop) {
+                return 'in_game';
+            }
+
+            // 3. Legacy LayaAir Lobby check
+            if (u && u.UI_Lobby && u.UI_Lobby.Inst) {
+                const lb = u.UI_Lobby.Inst;
+                const is_visible = (lb.visible !== false) && (lb._visible !== false) && (lb.enable !== false);
+                if (is_visible || lb.page_lobby || lb.topbar) {
+                    return 'lobby';
+                }
+            }
+
+            if (u && !in_desktop) {
+                return 'lobby';
+            }
+
+            // 4. Unity WebGL fallback: Canvas check
+            const canvas = document.getElementsByTagName('canvas')[0];
+            if (canvas && canvas.width > 0 && canvas.height > 0) {
+                // If game canvas exists in Unity WebGL mode without desktop active, default to lobby
+                return 'lobby';
+            }
+
+            return 'unknown';
+        } catch (_) {
+            return 'unknown';
+        }
+    })()"#;
+    let result = page
+        .evaluate(expr)
+        .await
+        .context("CDP evaluate majsoul screen state")?;
+    let val_str = result
+        .value()
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown");
+    Ok(match val_str {
+        "lobby" => MajsoulScreenState::Lobby,
+        "game_end" => MajsoulScreenState::GameEnd,
+        "in_game" => MajsoulScreenState::InGame,
+        _ => MajsoulScreenState::Unknown,
+    })
+}
+
+/// Detailed diagnostic dump of Majsoul global JavaScript namespaces for debugging.
+pub async fn probe_majsoul_diagnostics(page: &Page) -> Result<String> {
+    let expr = r#"(()=>{
+        try {
+            const u = typeof uiscript !== 'undefined' ? uiscript : (window.uiscript || null);
+            const v = typeof view !== 'undefined' ? view : (window.view || null);
+            const g = typeof game !== 'undefined' ? game : (window.game || null);
+            const info = [];
+
+            const canvas = document.getElementsByTagName('canvas')[0];
+            if (canvas) {
+                info.push("Canvas:" + canvas.width + "x" + canvas.height);
+            } else {
+                info.push("Canvas:None");
+            }
+
+            const has_unity = typeof unityInstance !== 'undefined' || typeof createUnityInstance !== 'undefined' || typeof UnityLoader !== 'undefined';
+            if (has_unity) {
+                info.push("Unity:O");
+            }
+
+            if (u) {
+                info.push("uiscript:O");
+                if (u.UI_Lobby) {
+                    info.push("UI_Lobby:O");
+                    if (u.UI_Lobby.Inst) {
+                        const lb = u.UI_Lobby.Inst;
+                        info.push("Inst:O(vis=" + lb.visible + ",en=" + lb.enable + ",act=" + lb.active + ")");
+                    } else {
+                        info.push("Inst:null");
+                    }
+                } else {
+                    info.push("UI_Lobby:X");
+                }
+            } else {
+                info.push("Engine:Unity_WebGL");
+            }
+
+            if (document.title) {
+                info.push("Title:" + document.title);
+            }
+
+            return info.join(", ");
+        } catch (e) {
+            return "ERR:" + e.message;
+        }
+    })()"#;
+    let result = page.evaluate(expr).await.context("CDP evaluate diagnostics")?;
+    Ok(result.value().and_then(|v| v.as_str()).unwrap_or("no diag").to_string())
+}
+
 // ============================================================================
 // Tenhou actuation
 // ============================================================================

@@ -192,47 +192,65 @@ pub async fn auto_queue_watcher(
 
                         let mut aborted = false;
 
-                        // 정산 화면을 넘기기 위한 확인 클릭:
-                        // 작혼의 정산 연출(순위/점수 -> 친밀도/선물 -> 단위점수 -> 최종 결과창)을 완전히 닫기 위해
-                        // 사용자가 설정한 확인 클릭 횟수(기본 3~5회)를 확실하게 모두 수행합니다.
-                        // 작혼 정산 화면(순위 연출 -> 친밀도 획득 -> 미션 달성 -> 단위 포인트 -> 최종 결과 확인)을
-                        // 확실하게 모두 통과하기 위해 최소 6회 이상의 확인 클릭을 보장합니다.
-                        let required_confirms = aq.confirm_clicks.max(6).clamp(6, 15);
+                        // 1. 이미 유저가 직접 확인을 눌러 로비로 복귀했는지 확인
+                        if !crate::bridge::majsoul::is_settling() {
+                            info!("auto_queue: 이미 메인 로비에 도달해 있으므로 정산 확인 클릭을 생략합니다.");
+                        } else {
+                            // 2. 정산 화면을 넘기기 위한 확인 클릭 루프 (최대 required_confirms회)
+                            let required_confirms = aq.confirm_clicks.max(6).clamp(6, 15);
 
-                        for click_idx in 1..=required_confirms {
-                            if !cfg.read().await.autoplay.auto_queue.enabled {
-                                aborted = true;
-                                break;
+                            for click_idx in 1..=required_confirms {
+                                if !cfg.read().await.autoplay.auto_queue.enabled {
+                                    aborted = true;
+                                    break;
+                                }
+
+                                // 이미 로비에 복귀했다면 즉시 확인 클릭 중단
+                                if click_idx > 1 && !crate::bridge::majsoul::is_settling() {
+                                    info!(
+                                        "auto_queue: 로비 복귀 감지됨 (is_settling=false) -> 확인 클릭({}회 완료 후) 즉시 종료",
+                                        click_idx - 1
+                                    );
+                                    break;
+                                }
+
+                                let label = format!("확인/로비탈출 ({click_idx}/{required_confirms})");
+                                info!(
+                                    "auto_queue: clicking confirm ({click_idx}/{required_confirms}) at ({:.2}, {:.2})",
+                                    aq.confirm_x, aq.confirm_y
+                                );
+                                if let Err(e) = execute_click_with_indicator(
+                                    &ctx,
+                                    aq.confirm_x,
+                                    aq.confirm_y,
+                                    &label,
+                                    aq.show_click_indicator,
+                                )
+                                .await
+                                {
+                                    warn!("auto_queue: confirm click failed: {e}");
+                                }
+
+                                tokio::time::sleep(confirm_delay).await;
+
+                                // 클릭 후 로비 복귀 확인
+                                if !crate::bridge::majsoul::is_settling() {
+                                    info!(
+                                        "auto_queue: 로비 복귀 감지됨 (is_settling=false) -> 확인 클릭({click_idx}회 완료 후) 즉시 종료"
+                                    );
+                                    break;
+                                }
                             }
 
-                            let label = format!("확인/로비탈출 ({click_idx}/{required_confirms})");
-                            info!(
-                                "auto_queue: clicking confirm ({click_idx}/{required_confirms}) at ({:.2}, {:.2})",
-                                aq.confirm_x, aq.confirm_y
-                            );
-                            if let Err(e) = execute_click_with_indicator(
-                                &ctx,
-                                aq.confirm_x,
-                                aq.confirm_y,
-                                &label,
-                                aq.show_click_indicator,
-                            )
-                            .await
-                            {
-                                warn!("auto_queue: confirm click failed: {e}");
+                            if aborted {
+                                reset_status(&status, &status_bus).await;
+                                continue;
                             }
-
-                            tokio::time::sleep(confirm_delay).await;
                         }
 
-                        if aborted {
-                            reset_status(&status, &status_bus).await;
-                            continue;
-                        }
-
-                        // 정산 화면 확인 클릭 완료 -> 메인 로비 상태로 전환
+                        // 정산 완료 공식 확정 -> 메인 로비 상태
                         crate::bridge::majsoul::record_settlement_finished();
-                        info!("auto_queue: 정산 화면 확인 클릭({required_confirms}회) 완료 -> 메인 로비 진입");
+                        info!("auto_queue: 메인 로비 진입 확정 -> 단위전 매칭 시퀀스 준비");
 
                         // 로비 최종 도달 안정화 대기
                         tokio::time::sleep(Duration::from_millis(1500)).await;

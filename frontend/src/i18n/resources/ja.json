@@ -836,7 +836,14 @@
     "majsoul_preset_en": "グローバル / 英語 (EN)",
     "majsoul_preset_cn": "中国サーバー (CN)",
     "tenhou_preset_web4": "Web /4/ (HTML5)",
-    "tenhou_preset_web3": "Web /3/"
+    "tenhou_preset_web3": "Web /3/",
+    "server_select": "サーバー選択",
+    "launch_game": "雀魂を起動",
+    "server_change_confirm_title": "接続サーバーの変更",
+    "server_change_confirm_desc": "サーバーを変更するとブラウザが再起動します。よろしいですか？",
+    "auto_launch_label": "起動時のブラウザ自動起動",
+    "auto_launch_desc": "オフにすると、スマホなど他端末での重複ログインによる強制ログアウトを防止できます。",
+    "auto_launch_prevent_conflict": "他端末での重複ログイン防止"
   },
   "updates": {
     "toast": {

@@ -4,6 +4,8 @@ import {
   Bot,
   Crosshair,
   ExternalLink,
+  Gamepad2,
+  Globe,
   Minimize2,
   Maximize2,
   PanelTopClose,
@@ -14,6 +16,7 @@ import {
   Settings2,
   X,
 } from 'lucide-react'
+import { ServerSelector } from '@/components/ServerSelector'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { useAutoQueueStore } from '@/stores/autoQueueStore'
@@ -404,6 +407,31 @@ export function PlayClient() {
     }
   }
 
+  const toggleAutoLaunch = async (auto_launch: boolean) => {
+    if (!HAS_TAURI || !config) return
+    const nextConfig = {
+      ...config,
+      capture: {
+        ...config.capture,
+        chromium: {
+          ...config.capture.chromium,
+          auto_launch,
+        },
+      },
+    }
+    setConfig(nextConfig)
+    try {
+      await invoke('update_config', { newConfig: nextConfig })
+      toast.success(
+        auto_launch
+          ? '아카기 시작 시 브라우저가 자동 실행됩니다.'
+          : '아카기 시작 시 브라우저 자동 실행이 꺼졌습니다. (다른 기기 중복 로그인 방지)'
+      )
+    } catch {
+      toast.error('설정 저장 실패')
+    }
+  }
+
   const toggleAutoplay = async (enabled: boolean) => {
     if (!HAS_TAURI || !config) return
     const nextConfig = {
@@ -528,6 +556,21 @@ export function PlayClient() {
             </button>
           </div>
 
+          <ServerSelector variant="header" disabled={busy} />
+
+          {captureStatus.state !== 'running' && (
+            <Button
+              size="sm"
+              className="h-7 text-xs px-2.5 gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs font-semibold"
+              onClick={() => void restartCapture()}
+              disabled={busy}
+              title="작혼 브라우저 실행"
+            >
+              <Play className="h-3.5 w-3.5 fill-current" />
+              작혼 실행
+            </Button>
+          )}
+
           <Button
             variant="outline"
             size="sm"
@@ -592,30 +635,77 @@ export function PlayClient() {
         className="flex-1 w-full min-h-0 relative bg-zinc-950/90 flex items-center justify-center select-none"
       >
         {!status.embedded && (
-          <div className="max-w-md rounded-lg border border-border bg-card p-6 text-center shadow-lg grid gap-3">
-            <h3 className="text-base font-semibold">
-              {!status.enabled
-                ? '작혼 창이 외부 독립 창으로 분리되어 있습니다'
-                : captureStatus.state === 'running'
-                  ? '작혼 브라우저 창을 연결하는 중입니다…'
-                  : '브라우저 캡처가 실행 중이 아닙니다'}
-            </h3>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              {!status.enabled
-                ? '외부 창에서도 백그라운드 오토플레이는 멈추지 않고 계속 작동합니다. 다시 아카기 탭 안으로 넣으려면 아래 버튼을 누르세요.'
-                : '다른 탭(대시보드, 설정 등)으로 이동하거나 다른 프로그램을 켜도 백그라운드에서 작혼 렌더링과 오토플레이가 멈추지 않고 계속 작동합니다.'}
-            </p>
-            <div className="flex items-center justify-center gap-2 pt-1">
-              {!status.enabled ? (
-                <Button size="sm" onClick={() => void toggleEmbed()} disabled={busy}>
-                  아카기 탭 안으로 넣기
-                </Button>
-              ) : (
-                <Button size="sm" variant="outline" onClick={() => void restartCapture()} disabled={busy}>
-                  브라우저 다시 열기
-                </Button>
-              )}
-            </div>
+          <div className="max-w-lg rounded-xl border border-border bg-card p-6 text-center shadow-2xl grid gap-5 select-none">
+            {captureStatus.state !== 'running' ? (
+              <>
+                <div className="grid gap-1.5">
+                  <h3 className="text-lg font-bold text-foreground flex items-center justify-center gap-2">
+                    <Gamepad2 className="h-5 w-5 text-primary" />
+                    작혼 실행 전 서버 선택
+                  </h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    접속할 서버(지역)를 선택하세요.
+                    <br />
+                    원치 않는 서버로 자동 접속되어 <span className="font-semibold text-foreground/90">다른 기기(스마트폰 등)에서 강제 로그아웃(중복 로그인)</span>되는 것을 방지합니다.
+                  </p>
+                </div>
+
+                <div className="bg-muted/30 border border-border/60 rounded-lg p-3.5 grid gap-2.5 text-left">
+                  <span className="text-xs font-semibold text-foreground/80 flex items-center gap-1.5">
+                    <Globe className="h-3.5 w-3.5 text-primary" />
+                    접속 서버 (지역)
+                  </span>
+                  <ServerSelector variant="button-group" disabled={busy} />
+                </div>
+
+                <div className="flex flex-col gap-3 pt-1">
+                  <Button
+                    size="default"
+                    className="w-full gap-2 text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-md py-5"
+                    onClick={() => void restartCapture()}
+                    disabled={busy}
+                  >
+                    <Play className="h-4 w-4 fill-current" />
+                    선택한 서버로 작혼 브라우저 실행
+                  </Button>
+
+                  <div className="flex items-center justify-between border-t border-border/40 pt-3 text-xs text-muted-foreground">
+                    <div className="flex flex-col text-left">
+                      <span className="font-medium text-foreground/90">아카기 시작 시 브라우저 자동 실행</span>
+                      <span className="text-[11px] text-muted-foreground">끄면 아카기 시작 시 다른 기기 중복 로그인이 방지됩니다.</span>
+                    </div>
+                    <Switch
+                      checked={config?.capture?.chromium?.auto_launch ?? true}
+                      onCheckedChange={(v) => void toggleAutoLaunch(v)}
+                    />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 className="text-base font-semibold">
+                  {!status.enabled
+                    ? '작혼 창이 외부 독립 창으로 분리되어 있습니다'
+                    : '작혼 브라우저 창을 연결하는 중입니다…'}
+                </h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {!status.enabled
+                    ? '외부 창에서도 백그라운드 오토플레이는 멈추지 않고 계속 작동합니다. 다시 아카기 탭 안으로 넣으려면 아래 버튼을 누르세요.'
+                    : '다른 탭(대시보드, 설정 등)으로 이동하거나 다른 프로그램을 켜도 백그라운드에서 작혼 렌더링과 오토플레이가 멈추지 않고 계속 작동합니다.'}
+                </p>
+                <div className="flex items-center justify-center gap-2 pt-1">
+                  {!status.enabled ? (
+                    <Button size="sm" onClick={() => void toggleEmbed()} disabled={busy}>
+                      아카기 탭 안으로 넣기
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="outline" onClick={() => void restartCapture()} disabled={busy}>
+                      브라우저 다시 열기
+                    </Button>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         )}
 

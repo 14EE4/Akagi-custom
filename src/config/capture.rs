@@ -77,6 +77,10 @@ pub enum CaptureMode {
     Chromium,
 }
 
+fn default_true() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ChromiumConfig {
@@ -111,6 +115,11 @@ pub struct ChromiumConfig {
     /// Takes effect on the next capture start. See
     /// `src/capture/chromium/cdp.rs`.
     pub block_telemetry: bool,
+    /// Whether to automatically launch the browser when Akagi starts up.
+    /// Default is `true`. When `false`, Akagi waits until the user selects
+    /// a server and clicks launch in the UI to prevent duplicate logins on other devices.
+    #[serde(default = "default_true")]
+    pub auto_launch: bool,
 }
 
 impl Default for ChromiumConfig {
@@ -123,6 +132,7 @@ impl Default for ChromiumConfig {
             force_cft: false,
             extra_args: vec![],
             block_telemetry: true,
+            auto_launch: true,
         }
     }
 }
@@ -180,6 +190,7 @@ mod tests {
                 force_cft: true,
                 extra_args: vec!["--lang=ja".into()],
                 block_telemetry: false,
+                auto_launch: true,
             },
             http: Default::default(),
         };

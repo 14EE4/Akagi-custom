@@ -266,17 +266,23 @@ pub async fn evaluate_majsoul_screen_state(page: &Page) -> Result<MajsoulScreenS
                 return 'in_game';
             }
 
-            // 3. Strict Lobby check: UI_Lobby가 실제로 visible 및 active 상태일 때만 로비로 판정
+            // 3. LayaAir Lobby check: UI_Lobby가 활성화되어 있을 때 로비로 판정
             if (u && u.UI_Lobby && u.UI_Lobby.Inst) {
                 const lb = u.UI_Lobby.Inst;
                 const is_active = (lb.active !== false) && (lb.visible !== false) && (lb._visible !== false) && (lb.enable !== false);
-                const has_lobby_ui = !!(lb.page_lobby || lb.topbar || lb.btn_rank || lb.btn_match || lb._topbar);
-                if (is_active && has_lobby_ui) {
+                if (is_active) {
                     return 'lobby';
                 }
             }
 
-            // Fallback으로 무조건 lobby를 반환하던 이전 버그 제거: 불확실하면 unknown 반환
+            // 4. Unity WebGL Canvas check: uiscript가 없는 Unity 모드인 경우 캔버스 렌더링 확인
+            const canvas = document.getElementsByTagName('canvas')[0];
+            const has_unity = typeof unityInstance !== 'undefined' || typeof createUnityInstance !== 'undefined' || typeof UnityLoader !== 'undefined';
+            if ((has_unity || !u) && canvas && canvas.width > 0 && canvas.height > 0) {
+                // Unity WebGL 모드에서는 JS UI 싱글톤이 없으므로 로비로 판정 (Rust 백엔드 GameTracker가 대국 중 여부 최종 확정)
+                return 'lobby';
+            }
+
             return 'unknown';
         } catch (_) {
             return 'unknown';

@@ -101,6 +101,11 @@ pub async fn auto_queue_watcher(
         match rx.recv().await {
             Ok(ev) => match ev {
                 MjaiEvent::EndGame { .. } => {
+                    let game_end_time_ms = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_millis() as u64;
+
                     let aq = {
                         let guard = cfg.read().await;
                         guard.autoplay.auto_queue.clone()
@@ -213,7 +218,45 @@ pub async fn auto_queue_watcher(
                             continue;
                         }
 
-                        info!("auto_queue: completed settlement confirm clicks ({confirm_clicks} clicks); now in lobby, proceeding to matchmaking sequence");
+                        // 로비(메인화면) 도달 여부 검사 및 미도달 시 안전 추가 클릭
+                        let mut is_in_lobby =
+                            crate::bridge::majsoul::last_lobby_packet_ms() >= game_end_time_ms;
+
+                        let mut extra_attempts = 0;
+                        while !is_in_lobby && extra_attempts < 2 {
+                            if !cfg.read().await.autoplay.auto_queue.enabled {
+                                aborted = true;
+                                break;
+                            }
+                            extra_attempts += 1;
+                            warn!(
+                                "auto_queue: 아직 로비 패킷 미수신 (정산 연출 잔류 가능성). 확인 버튼 1회 추가 클릭 (추가 {extra_attempts}/2)"
+                            );
+                            let label = format!("추가 확인/로비탈출 ({extra_attempts}/2)");
+                            let _ = execute_click_with_indicator(
+                                &ctx,
+                                aq.confirm_x,
+                                aq.confirm_y,
+                                &label,
+                                aq.show_click_indicator,
+                            )
+                            .await;
+
+                            tokio::time::sleep(confirm_delay).await;
+                            is_in_lobby =
+                                crate::bridge::majsoul::last_lobby_packet_ms() >= game_end_time_ms;
+                        }
+
+                        if aborted {
+                            reset_status(&status, &status_bus).await;
+                            continue;
+                        }
+
+                        if is_in_lobby {
+                            info!("auto_queue: 로비(메인화면) 진입 확인 완료! (네트워크 로비 패킷 감지)");
+                        } else {
+                            warn!("auto_queue: 최대 확인 횟수 도달 후 단위전 매칭 시퀀스로 진행합니다.");
+                        }
 
                         // 로비 최종 도달 안정화 대기
                         tokio::time::sleep(Duration::from_millis(1500)).await;

@@ -1595,8 +1595,12 @@ impl Bridge for MajsoulBridge {
                 if msg.method_name.starts_with(".lq.Lobby.") && !msg.method_name.ends_with(".heatbeat") {
                     record_lobby_packet();
                     // fetchAccountInfo, logReport 등 정산 중 백그라운드 패킷은 제외하고,
-                    // 오직 로비 화면 활성 시 발생하는 loginBeat나 매칭 요청 시에만 정산 완료 처리
-                    if (msg.method_name.as_ref() == ".lq.Lobby.loginBeat" || msg.method_name.ends_with(".startUnifiedMatch")) && is_settling() {
+                    // 오직 로비 화면 활성 시 발생하는 loginBeat나 방 복귀(fetchRoom), 매칭 요청 시에만 정산 완료 처리
+                    if (msg.method_name.as_ref() == ".lq.Lobby.loginBeat"
+                        || msg.method_name.ends_with(".fetchRoom")
+                        || msg.method_name.ends_with(".startUnifiedMatch"))
+                        && is_settling()
+                    {
                         record_settlement_finished();
                         info!(
                             target: "akagi::bridge::majsoul",
@@ -1644,7 +1648,11 @@ impl Bridge for MajsoulBridge {
                     );
                     if ready_resp.method_name.starts_with(".lq.Lobby.") && !ready_resp.method_name.ends_with(".heatbeat") {
                         record_lobby_packet();
-                        if (ready_resp.method_name.as_ref() == ".lq.Lobby.loginBeat" || ready_resp.method_name.ends_with(".startUnifiedMatch")) && is_settling() {
+                        if (ready_resp.method_name.as_ref() == ".lq.Lobby.loginBeat"
+                            || ready_resp.method_name.ends_with(".fetchRoom")
+                            || ready_resp.method_name.ends_with(".startUnifiedMatch"))
+                            && is_settling()
+                        {
                             record_settlement_finished();
                             info!(
                                 target: "akagi::bridge::majsoul",

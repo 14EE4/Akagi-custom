@@ -15,6 +15,7 @@ import {
   Square,
   RefreshCw,
   RotateCcw,
+  Scan,
   Settings2,
   X,
 } from 'lucide-react'
@@ -506,59 +507,6 @@ export function PlayClient() {
             />
           </div>
 
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted/50 border border-border/60">
-            <Label htmlFor="play-autoqueue-toggle" className="text-xs cursor-pointer whitespace-nowrap flex items-center gap-1">
-              <span>자동 다음 대국</span>
-              {autoQueueStatus.enabled && (
-                <span
-                  className={`text-[10px] font-semibold px-1 py-0.5 rounded cursor-pointer transition-colors ${
-                    autoQueueStatus.state === 'waiting'
-                      ? 'bg-amber-500/20 text-amber-500 border border-amber-500/40 animate-pulse'
-                      : autoQueueStatus.state === 'queuing'
-                      ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/40'
-                      : 'bg-primary/20 text-primary border border-primary/30'
-                  }`}
-                  onClick={(e) => {
-                    e.preventDefault()
-                    openAutoQueueDialog()
-                  }}
-                  title="클릭하여 연속 대국 설정 변경"
-                >
-                  {autoQueueStatus.state === 'waiting'
-                    ? `대기 중 (${autoQueueStatus.wait_seconds_left ?? 0}s)`
-                    : autoQueueStatus.state === 'queuing'
-                    ? '매칭 중...'
-                    : autoQueueStatus.max_matches > 0
-                    ? `${autoQueueStatus.current_matches}/${autoQueueStatus.max_matches}판`
-                    : autoQueueStatus.current_matches > 0
-                    ? `${autoQueueStatus.current_matches}판 완료`
-                    : 'ON'}
-                </span>
-              )}
-            </Label>
-            <Switch
-              id="play-autoqueue-toggle"
-              checked={autoQueueStatus.enabled}
-              onCheckedChange={(v) => void toggleAutoQueue(v)}
-            />
-            <button
-              type="button"
-              className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded"
-              onClick={openAutoQueueDialog}
-              title="자동 연속 대국 설정 (최대 대국 수, 대기 시간)"
-            >
-              <Settings2 className="h-3 w-3" />
-            </button>
-            <button
-              type="button"
-              className="text-muted-foreground hover:text-primary transition-colors p-0.5 rounded"
-              onClick={openAutoQueueDebugModal}
-              title="클릭 위치/시간 실시간 디버그 & 테스트"
-            >
-              <Crosshair className="h-3.5 w-3.5" />
-            </button>
-          </div>
-
           <ServerSelector variant="header" disabled={busy} />
 
           {captureStatus.state !== 'running' && (
@@ -633,19 +581,22 @@ export function PlayClient() {
           <Button
             variant={sidebarOpen ? "secondary" : "outline"}
             size="sm"
-            className="h-7 text-xs px-2 gap-1 font-medium ml-1"
+            className="h-7 text-xs px-2.5 gap-1.5 font-medium ml-1"
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            title={sidebarOpen ? "우측 사이드바 닫기" : "우측 사이드바 열기 (자동 큐 / 실시간 로그)"}
+            title={sidebarOpen ? "우측 사이드바 닫기" : "우측 사이드바 열기 (자동 대국 & 로그)"}
           >
             {sidebarOpen ? (
               <>
                 <PanelRightClose className="h-3.5 w-3.5 text-primary" />
-                <span className="hidden sm:inline">사이드바</span>
+                <span className="hidden sm:inline">자동 대국</span>
               </>
             ) : (
               <>
                 <PanelRightOpen className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="hidden sm:inline">사이드바</span>
+                <span className="hidden sm:inline">자동 대국</span>
+                {autoQueueStatus.enabled && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                )}
               </>
             )}
           </Button>
@@ -1452,23 +1403,30 @@ export function PlayClient() {
 
             <div className="flex-1 overflow-y-auto p-3 space-y-3 text-xs">
               {/* 1. Auto Queue Status Card */}
-              <div className="p-3 rounded-lg border border-border/70 bg-background/50 space-y-2">
+              <div className="p-3 rounded-lg border border-border/70 bg-background/50 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <div className="flex flex-col">
-                    <span className="font-semibold text-xs text-foreground">자동 매칭 (Auto Queue)</span>
+                    <span className="font-semibold text-xs text-foreground">자동 다음 대국</span>
                     <span className="text-[10px] text-muted-foreground">
                       {autoQueueStatus.max_matches > 0
                         ? `진행: ${autoQueueStatus.current_matches} / ${autoQueueStatus.max_matches} 판`
                         : `진행: ${autoQueueStatus.current_matches} 판 완료`}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => openAutoQueueDialog()}
-                      className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-                      title="자동 매칭 설정"
+                      className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+                      title="자동 연속 대국 설정 (판수, 대기시간)"
                     >
                       <Settings2 className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => openAutoQueueDebugModal()}
+                      className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-muted/60 transition-colors"
+                      title="클릭 좌표 및 디버그 모달"
+                    >
+                      <Crosshair className="h-3.5 w-3.5" />
                     </button>
                     <Switch
                       checked={autoQueueStatus.enabled}
@@ -1506,6 +1464,20 @@ export function PlayClient() {
                     </div>
                   </div>
                 )}
+
+                {/* 화면 상태 감지 버튼 */}
+                <div className="pt-1 border-t border-border/40">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full h-7 text-[11px] font-medium text-emerald-400 hover:text-emerald-300 border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 flex items-center justify-center gap-1.5"
+                    onClick={() => void testStep('check_screen')}
+                    title="현재 작혼 화면 상태(로비 / 정산 / 대국 중) 감지 및 로그 기록"
+                  >
+                    <Scan className="h-3.5 w-3.5" />
+                    현재 화면 상태 감지
+                  </Button>
+                </div>
               </div>
 
               {/* 2. Realtime Logs & Notifications Feed */}

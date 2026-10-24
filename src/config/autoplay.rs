@@ -312,7 +312,7 @@ impl Default for AutoQueueConfig {
             max_matches: 0,
             min_delay_sec: 8,
             max_delay_sec: 15,
-            initial_delay_ms: 25000,
+            initial_delay_ms: 26000,
             confirm_clicks: 3,
             confirm_delay_ms: 5000,
             confirm_x: 13.9,

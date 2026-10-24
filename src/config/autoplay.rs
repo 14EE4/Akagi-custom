@@ -145,12 +145,12 @@ impl Default for DelayModelConfig {
             min_button_delay_ms: 1600,
             distribution: DelayDistribution::LogNormal,
             lognormal: default_lognormal(),
-            bank_on_long_thought: true,
+            bank_on_long_thought: false,
             riichi_extra_ms: 0,
             kan_extra_ms: 0,
             safety_margin_ms: 1000,
-            bank_use_fraction: 0.25,
-            bank_max_single_ms: 5000,
+            bank_use_fraction: 0.10,
+            bank_max_single_ms: 1000,
             // 15s static ceiling: far above anything the default
             // distribution produces, low enough to survive even a 5s+20
             // room's base window if the budget is somehow unknown.
@@ -246,7 +246,7 @@ pub struct AutoQueueConfig {
     /// Maximum random delay before clicking rematch/next game (seconds). Default: 15
     pub max_delay_sec: u32,
 
-    /// Initial delay in ms after game end before the first confirm click. Default: 25000 (25s)
+    /// Initial delay in ms after game end before the first confirm click. Default: 30000 (30s)
     pub initial_delay_ms: u32,
     /// Number of confirm ("확인") clicks to advance through settlement screens (2 for normal characters, 3 for bonded/contracted). Default: 3
     pub confirm_clicks: u32,
@@ -312,7 +312,7 @@ impl Default for AutoQueueConfig {
             max_matches: 0,
             min_delay_sec: 8,
             max_delay_sec: 15,
-            initial_delay_ms: 26000,
+            initial_delay_ms: 30000,
             confirm_clicks: 3,
             confirm_delay_ms: 5000,
             confirm_x: 13.9,

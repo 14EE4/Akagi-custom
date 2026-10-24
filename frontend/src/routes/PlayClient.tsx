@@ -65,6 +65,18 @@ export function PlayClient() {
     modal_yes_x: 6.9,
     modal_yes_y: 6.5,
     show_click_indicator: true,
+    strategy: 'lobby' as 'lobby' | 'rematch',
+    lobby_confirm_max: 8,
+    lobby_confirm_delay_ms: 3500,
+    rank_match_x: 13.5,
+    rank_match_y: 2.8,
+    four_player_x: 4.5,
+    four_player_y: 1.4,
+    room_card_x: 5.8,
+    room_card_y: 4.5,
+    round_type_x: 6.6,
+    round_type_y: 6.5,
+    lobby_step_delay_ms: 1500,
   })
 
   const appendDebugLog = (msg: string) => {
@@ -90,6 +102,18 @@ export function PlayClient() {
       modal_yes_x: currentAq?.modal_yes_x ?? 6.9,
       modal_yes_y: currentAq?.modal_yes_y ?? 6.5,
       show_click_indicator: currentAq?.show_click_indicator ?? true,
+      strategy: (currentAq?.strategy ?? 'lobby') as 'lobby' | 'rematch',
+      lobby_confirm_max: currentAq?.lobby_confirm_max ?? 8,
+      lobby_confirm_delay_ms: currentAq?.lobby_confirm_delay_ms ?? 3500,
+      rank_match_x: currentAq?.rank_match_x ?? 13.5,
+      rank_match_y: currentAq?.rank_match_y ?? 2.8,
+      four_player_x: currentAq?.four_player_x ?? 4.5,
+      four_player_y: currentAq?.four_player_y ?? 1.4,
+      room_card_x: currentAq?.room_card_x ?? 5.8,
+      room_card_y: currentAq?.room_card_y ?? 4.5,
+      round_type_x: currentAq?.round_type_x ?? 6.6,
+      round_type_y: currentAq?.round_type_y ?? 6.5,
+      lobby_step_delay_ms: currentAq?.lobby_step_delay_ms ?? 1500,
     })
     setAutoQueueDialogOpen(true)
   }
@@ -112,6 +136,18 @@ export function PlayClient() {
       modal_yes_x: currentAq?.modal_yes_x ?? 6.9,
       modal_yes_y: currentAq?.modal_yes_y ?? 6.5,
       show_click_indicator: currentAq?.show_click_indicator ?? true,
+      strategy: (currentAq?.strategy ?? 'lobby') as 'lobby' | 'rematch',
+      lobby_confirm_max: currentAq?.lobby_confirm_max ?? 8,
+      lobby_confirm_delay_ms: currentAq?.lobby_confirm_delay_ms ?? 3500,
+      rank_match_x: currentAq?.rank_match_x ?? 13.5,
+      rank_match_y: currentAq?.rank_match_y ?? 2.8,
+      four_player_x: currentAq?.four_player_x ?? 4.5,
+      four_player_y: currentAq?.four_player_y ?? 1.4,
+      room_card_x: currentAq?.room_card_x ?? 5.8,
+      room_card_y: currentAq?.room_card_y ?? 4.5,
+      round_type_x: currentAq?.round_type_x ?? 6.6,
+      round_type_y: currentAq?.round_type_y ?? 6.5,
+      lobby_step_delay_ms: currentAq?.lobby_step_delay_ms ?? 1500,
     })
     setAutoQueueDebugOpen(true)
   }
@@ -577,39 +613,100 @@ export function PlayClient() {
             }`}
           >
             {hudMinimized ? (
-              /* Minimized Compact Bar (Does not block view at all) */
+              /* Minimized Compact Bar */
               <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-background/95 backdrop-blur-md border border-border shadow-2xl text-xs">
                 <div className="flex items-center gap-1 px-1.5 font-bold text-primary text-[11px]">
                   <Crosshair className="h-3.5 w-3.5" />
                   <span>디버그</span>
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-6 text-[10px] px-2 py-0 border-primary/40 bg-card hover:bg-primary/10"
-                  onClick={() => void testSingleClick(aqDraft.confirm_x, aqDraft.confirm_y, '확인')}
-                  title="확인 버튼 클릭 테스트"
-                >
-                  1.확인
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-6 text-[10px] px-2 py-0 border-primary/40 bg-card hover:bg-primary/10"
-                  onClick={() => void testSingleClick(aqDraft.rematch_x, aqDraft.rematch_y, '한번더')}
-                  title="한번더 버튼 클릭 테스트"
-                >
-                  2.한번더
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-6 text-[10px] px-2 py-0 border-primary/40 bg-card hover:bg-primary/10"
-                  onClick={() => void testSingleClick(aqDraft.modal_yes_x, aqDraft.modal_yes_y, '네')}
-                  title="팝업 '네' 버튼 클릭 테스트"
-                >
-                  3.네
-                </Button>
+                {aqDraft.strategy === 'lobby' ? (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-[10px] px-1.5 py-0 border-primary/40 bg-card hover:bg-primary/10"
+                      onClick={() => void testSingleClick(aqDraft.confirm_x, aqDraft.confirm_y, '확인')}
+                      title="우하단 확인(로비탈출) 클릭"
+                    >
+                      확인
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-[10px] px-1.5 py-0 border-primary/40 bg-card hover:bg-primary/10"
+                      onClick={() => void testSingleClick(aqDraft.rank_match_x, aqDraft.rank_match_y, '단위전')}
+                      title="1. 단위전 클릭"
+                    >
+                      1.단위전
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-[10px] px-1.5 py-0 border-primary/40 bg-card hover:bg-primary/10"
+                      onClick={() => void testSingleClick(aqDraft.four_player_x, aqDraft.four_player_y, '4인마작')}
+                      title="2. 4인 마작 탭 클릭"
+                    >
+                      2.4마
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-[10px] px-1.5 py-0 border-primary/40 bg-card hover:bg-primary/10"
+                      onClick={() => void testSingleClick(aqDraft.room_card_x, aqDraft.room_card_y, '은탁')}
+                      title="3. 은탁 카드 클릭"
+                    >
+                      3.은탁
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-[10px] px-1.5 py-0 border-primary/40 bg-card hover:bg-primary/10"
+                      onClick={() => void testSingleClick(aqDraft.round_type_x, aqDraft.round_type_y, '반장전')}
+                      title="4. 반장전 버튼 클릭"
+                    >
+                      4.반장
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 text-[10px] px-1.5 py-0 text-muted-foreground hover:text-foreground"
+                      onClick={() => void testStep('check_screen')}
+                      title="현재 화면 상태 감지 (Lobby/GameEnd)"
+                    >
+                      상태
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-[10px] px-2 py-0 border-primary/40 bg-card hover:bg-primary/10"
+                      onClick={() => void testSingleClick(aqDraft.confirm_x, aqDraft.confirm_y, '확인')}
+                      title="확인 버튼 클릭 테스트"
+                    >
+                      1.확인
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-[10px] px-2 py-0 border-primary/40 bg-card hover:bg-primary/10"
+                      onClick={() => void testSingleClick(aqDraft.rematch_x, aqDraft.rematch_y, '한번더')}
+                      title="한번더 버튼 클릭 테스트"
+                    >
+                      2.한번더
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-[10px] px-2 py-0 border-primary/40 bg-card hover:bg-primary/10"
+                      onClick={() => void testSingleClick(aqDraft.modal_yes_x, aqDraft.modal_yes_y, '네')}
+                      title="팝업 '네' 버튼 클릭 테스트"
+                    >
+                      3.네
+                    </Button>
+                  </>
+                )}
                 <div className="h-3 w-px bg-border/60 mx-0.5" />
                 <Button
                   size="icon"
@@ -679,237 +776,508 @@ export function PlayClient() {
                   </div>
                 </div>
 
-                {/* Quick 1-Click Action Buttons */}
-                <div className="grid grid-cols-3 gap-1.5">
+                {/* Strategy Selection Toggle */}
+                <div className="grid grid-cols-2 gap-1 p-0.5 rounded-lg bg-muted/60 border border-border/40 text-[11px]">
                   <Button
                     size="sm"
-                    variant="outline"
-                    className="h-7 text-[11px] px-1.5 flex items-center justify-center gap-1 border-primary/40 bg-primary/5 hover:bg-primary/20"
-                    onClick={() => void testSingleClick(aqDraft.confirm_x, aqDraft.confirm_y, '확인')}
+                    variant={aqDraft.strategy === 'lobby' ? 'default' : 'ghost'}
+                    className="h-6 text-[10px] font-semibold"
+                    onClick={() => setAqDraft({ ...aqDraft, strategy: 'lobby' })}
                   >
-                    <Crosshair className="h-3 w-3 text-primary shrink-0" />
-                    1. 확인
+                    로비 탈출 후 재진입 (권장)
                   </Button>
                   <Button
                     size="sm"
-                    variant="outline"
-                    className="h-7 text-[11px] px-1.5 flex items-center justify-center gap-1 border-primary/40 bg-primary/5 hover:bg-primary/20"
-                    onClick={() => void testSingleClick(aqDraft.rematch_x, aqDraft.rematch_y, '한번더')}
+                    variant={aqDraft.strategy === 'rematch' ? 'default' : 'ghost'}
+                    className="h-6 text-[10px] font-semibold"
+                    onClick={() => setAqDraft({ ...aqDraft, strategy: 'rematch' })}
                   >
-                    <Crosshair className="h-3 w-3 text-primary shrink-0" />
-                    2. 한번더
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-[11px] px-1.5 flex items-center justify-center gap-1 border-primary/40 bg-primary/5 hover:bg-primary/20"
-                    onClick={() => void testSingleClick(aqDraft.modal_yes_x, aqDraft.modal_yes_y, '네')}
-                  >
-                    <Crosshair className="h-3 w-3 text-primary shrink-0" />
-                    3. 팝업'네'
+                    결과창 '한번더' 버튼
                   </Button>
                 </div>
 
-                {/* Coordinates & Timings Fine-Tuning */}
-                <div className="space-y-2.5 p-2 rounded-lg bg-muted/40 border border-border/50 text-[11px]">
-                  {/* Step 1: Confirm */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between font-semibold text-foreground">
-                      <span>1단계 [확인] (우하단 연출 스킵)</span>
-                      <span className="text-[10px] text-primary font-bold">{aqDraft.confirm_clicks}회 클릭</span>
-                    </div>
-
-                    {/* Character Preset Quick Toggle */}
-                    <div className="flex items-center gap-1.5">
+                {aqDraft.strategy === 'lobby' ? (
+                  /* Lobby Strategy View */
+                  <div className="space-y-2.5">
+                    {/* Quick 1-Click Action Buttons for Lobby */}
+                    <div className="grid grid-cols-5 gap-1">
                       <Button
                         size="sm"
-                        variant={aqDraft.confirm_clicks === 2 ? 'default' : 'outline'}
-                        className="h-5 text-[10px] px-2 py-0 flex-1 font-semibold"
-                        onClick={() => setAqDraft({ ...aqDraft, confirm_clicks: 2 })}
+                        variant="outline"
+                        className="h-6 text-[10px] px-1 flex items-center justify-center border-primary/40 bg-primary/5 hover:bg-primary/20"
+                        onClick={() => void testSingleClick(aqDraft.rank_match_x, aqDraft.rank_match_y, '1.단위전')}
                       >
-                        빠른 스킵 (2회)
+                        1.단위전
                       </Button>
                       <Button
                         size="sm"
-                        variant={aqDraft.confirm_clicks === 3 ? 'default' : 'outline'}
-                        className="h-5 text-[10px] px-2 py-0 flex-1 font-semibold"
-                        onClick={() => setAqDraft({ ...aqDraft, confirm_clicks: 3 })}
+                        variant="outline"
+                        className="h-6 text-[10px] px-1 flex items-center justify-center border-primary/40 bg-primary/5 hover:bg-primary/20"
+                        onClick={() => void testSingleClick(aqDraft.four_player_x, aqDraft.four_player_y, '2.4인마작')}
                       >
-                        기본 권장 (3회)
+                        2.4인마작
                       </Button>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={10}
-                        className="h-5 text-[10px] w-12 px-1 text-center"
-                        value={aqDraft.confirm_clicks}
-                        onChange={(e) => setAqDraft({ ...aqDraft, confirm_clicks: Math.max(1, parseInt(e.target.value || '1', 10)) })}
-                        title="직접 확인 클릭 횟수 지정"
-                      />
-                    </div>
-
-                    {/* Delays for Step 1 */}
-                    <div className="grid grid-cols-2 gap-1.5 pt-0.5 text-[10px]">
-                      <div>
-                        <span className="text-muted-foreground">대국 종료 후 첫 대기:</span>
-                        <div className="flex items-center gap-1 mt-0.5">
-                          <Input
-                            type="number"
-                            step={100}
-                            className="h-5 text-[10px] px-1 text-center"
-                            value={aqDraft.initial_delay_ms}
-                            onChange={(e) => setAqDraft({ ...aqDraft, initial_delay_ms: Math.max(500, parseInt(e.target.value || '1000', 10)) })}
-                          />
-                          <span className="text-muted-foreground shrink-0">ms</span>
-                        </div>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">확인 클릭 간 딜레이:</span>
-                        <div className="flex items-center gap-1 mt-0.5">
-                          <Input
-                            type="number"
-                            step={100}
-                            className="h-5 text-[10px] px-1 text-center"
-                            value={aqDraft.confirm_delay_ms}
-                            onChange={(e) => setAqDraft({ ...aqDraft, confirm_delay_ms: Math.max(500, parseInt(e.target.value || '1000', 10)) })}
-                          />
-                          <span className="text-muted-foreground shrink-0">ms</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Coordinates for Step 1 */}
-                    <div className="flex items-center gap-1.5 pt-0.5">
-                      <span className="text-muted-foreground">X:</span>
-                      <Input
-                        type="number"
-                        step={0.1}
-                        className="h-5 text-[10px] w-14 px-1 text-center"
-                        value={aqDraft.confirm_x}
-                        onChange={(e) => setAqDraft({ ...aqDraft, confirm_x: parseFloat(e.target.value || '0') })}
-                      />
-                      <span className="text-muted-foreground">Y:</span>
-                      <Input
-                        type="number"
-                        step={0.1}
-                        className="h-5 text-[10px] w-14 px-1 text-center"
-                        value={aqDraft.confirm_y}
-                        onChange={(e) => setAqDraft({ ...aqDraft, confirm_y: parseFloat(e.target.value || '0') })}
-                      />
                       <Button
                         size="sm"
-                        variant="secondary"
-                        className="h-5 text-[10px] px-2 ml-auto"
+                        variant="outline"
+                        className="h-6 text-[10px] px-1 flex items-center justify-center border-primary/40 bg-primary/5 hover:bg-primary/20"
+                        onClick={() => void testSingleClick(aqDraft.room_card_x, aqDraft.room_card_y, '3.은탁')}
+                      >
+                        3.은탁
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-6 text-[10px] px-1 flex items-center justify-center border-primary/40 bg-primary/5 hover:bg-primary/20"
+                        onClick={() => void testSingleClick(aqDraft.round_type_x, aqDraft.round_type_y, '4.반장전')}
+                      >
+                        4.반장전
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-6 text-[10px] px-1 flex items-center justify-center border-emerald-500/40 bg-emerald-500/5 hover:bg-emerald-500/20 text-emerald-400 font-bold"
+                        onClick={() => void testStep('check_screen')}
+                        title="작혼 화면 상태(로비/정산/인게임) 실시간 감지"
+                      >
+                        화면상태
+                      </Button>
+                    </div>
+
+                    <div className="space-y-2 p-2 rounded-lg bg-muted/40 border border-border/50 text-[11px]">
+                      {/* Step 1: Lobby Exit Loop */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between font-semibold text-foreground">
+                          <span>1단계 [로비 탈출] (우하단 확인 감지 루프)</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1.5 pt-0.5 text-[10px]">
+                          <div>
+                            <span className="text-muted-foreground">대국 종료 후 첫 대기:</span>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <Input
+                                type="number"
+                                step={100}
+                                className="h-5 text-[10px] px-1 text-center"
+                                value={aqDraft.initial_delay_ms}
+                                onChange={(e) => setAqDraft({ ...aqDraft, initial_delay_ms: Math.max(500, parseInt(e.target.value || '1000', 10)) })}
+                              />
+                              <span className="text-muted-foreground">ms</span>
+                            </div>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">탈출 확인 간격:</span>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <Input
+                                type="number"
+                                step={100}
+                                className="h-5 text-[10px] px-1 text-center"
+                                value={aqDraft.lobby_confirm_delay_ms}
+                                onChange={(e) => setAqDraft({ ...aqDraft, lobby_confirm_delay_ms: Math.max(500, parseInt(e.target.value || '1000', 10)) })}
+                              />
+                              <span className="text-muted-foreground">ms</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 pt-0.5">
+                          <span className="text-muted-foreground">확인 좌표 X:</span>
+                          <Input
+                            type="number"
+                            step={0.1}
+                            className="h-5 text-[10px] w-12 px-1 text-center"
+                            value={aqDraft.confirm_x}
+                            onChange={(e) => setAqDraft({ ...aqDraft, confirm_x: parseFloat(e.target.value || '0') })}
+                          />
+                          <span className="text-muted-foreground">Y:</span>
+                          <Input
+                            type="number"
+                            step={0.1}
+                            className="h-5 text-[10px] w-12 px-1 text-center"
+                            value={aqDraft.confirm_y}
+                            onChange={(e) => setAqDraft({ ...aqDraft, confirm_y: parseFloat(e.target.value || '0') })}
+                          />
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="h-5 text-[10px] px-2 ml-auto"
+                            onClick={() => void testSingleClick(aqDraft.confirm_x, aqDraft.confirm_y, '확인(로비탈출)')}
+                          >
+                            클릭
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Step 2: Lobby Rank Match Navigation */}
+                      <div className="space-y-1.5 pt-1.5 border-t border-border/30">
+                        <div className="flex items-center justify-between font-semibold text-foreground">
+                          <span>2단계 [로비 단위전 진입 탐색]</span>
+                          <span className="text-[10px] text-muted-foreground">단계별 딜레이: {aqDraft.lobby_step_delay_ms}ms</span>
+                        </div>
+
+                        {/* 1. 단위전 */}
+                        <div className="flex items-center gap-1.5 text-[10px]">
+                          <span className="w-16 shrink-0 font-medium text-foreground">1. 단위전:</span>
+                          <span className="text-muted-foreground">X</span>
+                          <Input
+                            type="number"
+                            step={0.1}
+                            className="h-5 text-[10px] w-12 px-1 text-center"
+                            value={aqDraft.rank_match_x}
+                            onChange={(e) => setAqDraft({ ...aqDraft, rank_match_x: parseFloat(e.target.value || '0') })}
+                          />
+                          <span className="text-muted-foreground">Y</span>
+                          <Input
+                            type="number"
+                            step={0.1}
+                            className="h-5 text-[10px] w-12 px-1 text-center"
+                            value={aqDraft.rank_match_y}
+                            onChange={(e) => setAqDraft({ ...aqDraft, rank_match_y: parseFloat(e.target.value || '0') })}
+                          />
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="h-5 text-[10px] px-1.5 ml-auto"
+                            onClick={() => void testSingleClick(aqDraft.rank_match_x, aqDraft.rank_match_y, '1. 단위전')}
+                          >
+                            클릭
+                          </Button>
+                        </div>
+
+                        {/* 2. 4인 마작 */}
+                        <div className="flex items-center gap-1.5 text-[10px]">
+                          <span className="w-16 shrink-0 font-medium text-foreground">2. 4인 마작:</span>
+                          <span className="text-muted-foreground">X</span>
+                          <Input
+                            type="number"
+                            step={0.1}
+                            className="h-5 text-[10px] w-12 px-1 text-center"
+                            value={aqDraft.four_player_x}
+                            onChange={(e) => setAqDraft({ ...aqDraft, four_player_x: parseFloat(e.target.value || '0') })}
+                          />
+                          <span className="text-muted-foreground">Y</span>
+                          <Input
+                            type="number"
+                            step={0.1}
+                            className="h-5 text-[10px] w-12 px-1 text-center"
+                            value={aqDraft.four_player_y}
+                            onChange={(e) => setAqDraft({ ...aqDraft, four_player_y: parseFloat(e.target.value || '0') })}
+                          />
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="h-5 text-[10px] px-1.5 ml-auto"
+                            onClick={() => void testSingleClick(aqDraft.four_player_x, aqDraft.four_player_y, '2. 4인 마작')}
+                          >
+                            클릭
+                          </Button>
+                        </div>
+
+                        {/* 3. 은탁 */}
+                        <div className="flex items-center gap-1.5 text-[10px]">
+                          <span className="w-16 shrink-0 font-medium text-foreground">3. 은탁:</span>
+                          <span className="text-muted-foreground">X</span>
+                          <Input
+                            type="number"
+                            step={0.1}
+                            className="h-5 text-[10px] w-12 px-1 text-center"
+                            value={aqDraft.room_card_x}
+                            onChange={(e) => setAqDraft({ ...aqDraft, room_card_x: parseFloat(e.target.value || '0') })}
+                          />
+                          <span className="text-muted-foreground">Y</span>
+                          <Input
+                            type="number"
+                            step={0.1}
+                            className="h-5 text-[10px] w-12 px-1 text-center"
+                            value={aqDraft.room_card_y}
+                            onChange={(e) => setAqDraft({ ...aqDraft, room_card_y: parseFloat(e.target.value || '0') })}
+                          />
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="h-5 text-[10px] px-1.5 ml-auto"
+                            onClick={() => void testSingleClick(aqDraft.room_card_x, aqDraft.room_card_y, '3. 은탁')}
+                          >
+                            클릭
+                          </Button>
+                        </div>
+
+                        {/* 4. 반장전 */}
+                        <div className="flex items-center gap-1.5 text-[10px]">
+                          <span className="w-16 shrink-0 font-medium text-foreground">4. 반장전:</span>
+                          <span className="text-muted-foreground">X</span>
+                          <Input
+                            type="number"
+                            step={0.1}
+                            className="h-5 text-[10px] w-12 px-1 text-center"
+                            value={aqDraft.round_type_x}
+                            onChange={(e) => setAqDraft({ ...aqDraft, round_type_x: parseFloat(e.target.value || '0') })}
+                          />
+                          <span className="text-muted-foreground">Y</span>
+                          <Input
+                            type="number"
+                            step={0.1}
+                            className="h-5 text-[10px] w-12 px-1 text-center"
+                            value={aqDraft.round_type_y}
+                            onChange={(e) => setAqDraft({ ...aqDraft, round_type_y: parseFloat(e.target.value || '0') })}
+                          />
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="h-5 text-[10px] px-1.5 ml-auto"
+                            onClick={() => void testSingleClick(aqDraft.round_type_x, aqDraft.round_type_y, '4. 반장전')}
+                          >
+                            클릭
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Simulation Button for Lobby */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full h-7 text-xs font-semibold gap-1.5 border-primary/40 bg-primary/5 hover:bg-primary/20"
+                      onClick={() => void testStep('full_sequence')}
+                    >
+                      <Play className="h-3 w-3 text-primary" />
+                      전체 로비 시뮬레이션 (단위전 → 4마 → 은탁 → 반장)
+                    </Button>
+                  </div>
+                ) : (
+                  /* Legacy Rematch View */
+                  <div className="space-y-2.5">
+                    {/* Quick 1-Click Action Buttons */}
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-[11px] px-1.5 flex items-center justify-center gap-1 border-primary/40 bg-primary/5 hover:bg-primary/20"
                         onClick={() => void testSingleClick(aqDraft.confirm_x, aqDraft.confirm_y, '확인')}
                       >
-                        클릭
+                        <Crosshair className="h-3 w-3 text-primary shrink-0" />
+                        1. 확인
                       </Button>
-                    </div>
-                  </div>
-
-                  {/* Step 2: Rematch */}
-                  <div className="space-y-1.5 pt-2 border-t border-border/30">
-                    <div className="flex items-center justify-between font-semibold text-foreground">
-                      <span>2단계 [한번 더] (우하단 좌측 재대국)</span>
-                    </div>
-
-                    <div className="flex items-center gap-2 text-[10px]">
-                      <span className="text-muted-foreground shrink-0">결과 화면 대기 딜레이:</span>
-                      <Input
-                        type="number"
-                        step={100}
-                        className="h-5 text-[10px] w-18 px-1 text-center"
-                        value={aqDraft.rematch_delay_ms}
-                        onChange={(e) => setAqDraft({ ...aqDraft, rematch_delay_ms: Math.max(500, parseInt(e.target.value || '1000', 10)) })}
-                      />
-                      <span className="text-muted-foreground shrink-0">ms</span>
-                    </div>
-
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-muted-foreground">X:</span>
-                      <Input
-                        type="number"
-                        step={0.1}
-                        className="h-5 text-[10px] w-14 px-1 text-center"
-                        value={aqDraft.rematch_x}
-                        onChange={(e) => setAqDraft({ ...aqDraft, rematch_x: parseFloat(e.target.value || '0') })}
-                      />
-                      <span className="text-muted-foreground">Y:</span>
-                      <Input
-                        type="number"
-                        step={0.1}
-                        className="h-5 text-[10px] w-14 px-1 text-center"
-                        value={aqDraft.rematch_y}
-                        onChange={(e) => setAqDraft({ ...aqDraft, rematch_y: parseFloat(e.target.value || '0') })}
-                      />
                       <Button
                         size="sm"
-                        variant="secondary"
-                        className="h-5 text-[10px] px-2 ml-auto"
+                        variant="outline"
+                        className="h-7 text-[11px] px-1.5 flex items-center justify-center gap-1 border-primary/40 bg-primary/5 hover:bg-primary/20"
                         onClick={() => void testSingleClick(aqDraft.rematch_x, aqDraft.rematch_y, '한번더')}
                       >
-                        클릭
+                        <Crosshair className="h-3 w-3 text-primary shrink-0" />
+                        2. 한번더
                       </Button>
-                    </div>
-                  </div>
-
-                  {/* Step 3: Modal Yes */}
-                  <div className="space-y-1.5 pt-2 border-t border-border/30">
-                    <div className="flex items-center justify-between font-semibold text-foreground">
-                      <span>3단계 [팝업 '네'] (화면 중앙 좌측 확인)</span>
-                    </div>
-
-                    <div className="flex items-center gap-2 text-[10px]">
-                      <span className="text-muted-foreground shrink-0">팝업창 대기 딜레이:</span>
-                      <Input
-                        type="number"
-                        step={100}
-                        className="h-5 text-[10px] w-18 px-1 text-center"
-                        value={aqDraft.modal_delay_ms}
-                        onChange={(e) => setAqDraft({ ...aqDraft, modal_delay_ms: Math.max(500, parseInt(e.target.value || '1000', 10)) })}
-                      />
-                      <span className="text-muted-foreground shrink-0">ms</span>
-                    </div>
-
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-muted-foreground">X:</span>
-                      <Input
-                        type="number"
-                        step={0.1}
-                        className="h-5 text-[10px] w-14 px-1 text-center"
-                        value={aqDraft.modal_yes_x}
-                        onChange={(e) => setAqDraft({ ...aqDraft, modal_yes_x: parseFloat(e.target.value || '0') })}
-                      />
-                      <span className="text-muted-foreground">Y:</span>
-                      <Input
-                        type="number"
-                        step={0.1}
-                        className="h-5 text-[10px] w-14 px-1 text-center"
-                        value={aqDraft.modal_yes_y}
-                        onChange={(e) => setAqDraft({ ...aqDraft, modal_yes_y: parseFloat(e.target.value || '0') })}
-                      />
                       <Button
                         size="sm"
-                        variant="secondary"
-                        className="h-5 text-[10px] px-2 ml-auto"
+                        variant="outline"
+                        className="h-7 text-[11px] px-1.5 flex items-center justify-center gap-1 border-primary/40 bg-primary/5 hover:bg-primary/20"
                         onClick={() => void testSingleClick(aqDraft.modal_yes_x, aqDraft.modal_yes_y, '네')}
                       >
-                        클릭
+                        <Crosshair className="h-3 w-3 text-primary shrink-0" />
+                        3. 팝업'네'
                       </Button>
                     </div>
-                  </div>
-                </div>
 
-                {/* Simulation Button */}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full h-7 text-xs font-semibold gap-1.5 border-primary/40 bg-primary/5 hover:bg-primary/20"
-                  onClick={() => void testStep('full_sequence')}
-                >
-                  <Play className="h-3 w-3 text-primary" />
-                  전체 시퀀스 시뮬레이션 ({aqDraft.confirm_clicks}회 → 한번더 → 네)
-                </Button>
+                    {/* Coordinates & Timings Fine-Tuning */}
+                    <div className="space-y-2.5 p-2 rounded-lg bg-muted/40 border border-border/50 text-[11px]">
+                      {/* Step 1: Confirm */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between font-semibold text-foreground">
+                          <span>1단계 [확인] (우하단 연출 스킵)</span>
+                          <span className="text-[10px] text-primary font-bold">{aqDraft.confirm_clicks}회 클릭</span>
+                        </div>
+
+                        {/* Character Preset Quick Toggle */}
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            size="sm"
+                            variant={aqDraft.confirm_clicks === 2 ? 'default' : 'outline'}
+                            className="h-5 text-[10px] px-2 py-0 flex-1 font-semibold"
+                            onClick={() => setAqDraft({ ...aqDraft, confirm_clicks: 2 })}
+                          >
+                            빠른 스킵 (2회)
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={aqDraft.confirm_clicks === 3 ? 'default' : 'outline'}
+                            className="h-5 text-[10px] px-2 py-0 flex-1 font-semibold"
+                            onClick={() => setAqDraft({ ...aqDraft, confirm_clicks: 3 })}
+                          >
+                            기본 권장 (3회)
+                          </Button>
+                          <Input
+                            type="number"
+                            min={1}
+                            max={10}
+                            className="h-5 text-[10px] w-12 px-1 text-center"
+                            value={aqDraft.confirm_clicks}
+                            onChange={(e) => setAqDraft({ ...aqDraft, confirm_clicks: Math.max(1, parseInt(e.target.value || '1', 10)) })}
+                            title="직접 확인 클릭 횟수 지정"
+                          />
+                        </div>
+
+                        {/* Delays for Step 1 */}
+                        <div className="grid grid-cols-2 gap-1.5 pt-0.5 text-[10px]">
+                          <div>
+                            <span className="text-muted-foreground">대국 종료 후 첫 대기:</span>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <Input
+                                type="number"
+                                step={100}
+                                className="h-5 text-[10px] px-1 text-center"
+                                value={aqDraft.initial_delay_ms}
+                                onChange={(e) => setAqDraft({ ...aqDraft, initial_delay_ms: Math.max(500, parseInt(e.target.value || '1000', 10)) })}
+                              />
+                              <span className="text-muted-foreground">ms</span>
+                            </div>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">확인 클릭 간 딜레이:</span>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <Input
+                                type="number"
+                                step={100}
+                                className="h-5 text-[10px] px-1 text-center"
+                                value={aqDraft.confirm_delay_ms}
+                                onChange={(e) => setAqDraft({ ...aqDraft, confirm_delay_ms: Math.max(500, parseInt(e.target.value || '1000', 10)) })}
+                              />
+                              <span className="text-muted-foreground">ms</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Coordinates for Step 1 */}
+                        <div className="flex items-center gap-1.5 pt-0.5">
+                          <span className="text-muted-foreground">X:</span>
+                          <Input
+                            type="number"
+                            step={0.1}
+                            className="h-5 text-[10px] w-14 px-1 text-center"
+                            value={aqDraft.confirm_x}
+                            onChange={(e) => setAqDraft({ ...aqDraft, confirm_x: parseFloat(e.target.value || '0') })}
+                          />
+                          <span className="text-muted-foreground">Y:</span>
+                          <Input
+                            type="number"
+                            step={0.1}
+                            className="h-5 text-[10px] w-14 px-1 text-center"
+                            value={aqDraft.confirm_y}
+                            onChange={(e) => setAqDraft({ ...aqDraft, confirm_y: parseFloat(e.target.value || '0') })}
+                          />
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="h-5 text-[10px] px-2 ml-auto"
+                            onClick={() => void testSingleClick(aqDraft.confirm_x, aqDraft.confirm_y, '확인')}
+                          >
+                            클릭
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Step 2: Rematch */}
+                      <div className="space-y-1.5 pt-2 border-t border-border/30">
+                        <div className="flex items-center justify-between font-semibold text-foreground">
+                          <span>2단계 [한번더] (우하단 재전)</span>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-[10px]">
+                          <span className="text-muted-foreground shrink-0">결과 화면 대기 딜레이:</span>
+                          <Input
+                            type="number"
+                            step={100}
+                            className="h-5 text-[10px] w-18 px-1 text-center"
+                            value={aqDraft.rematch_delay_ms}
+                            onChange={(e) => setAqDraft({ ...aqDraft, rematch_delay_ms: Math.max(500, parseInt(e.target.value || '1000', 10)) })}
+                          />
+                          <span className="text-muted-foreground shrink-0">ms</span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-muted-foreground">X:</span>
+                          <Input
+                            type="number"
+                            step={0.1}
+                            className="h-5 text-[10px] w-14 px-1 text-center"
+                            value={aqDraft.rematch_x}
+                            onChange={(e) => setAqDraft({ ...aqDraft, rematch_x: parseFloat(e.target.value || '0') })}
+                          />
+                          <span className="text-muted-foreground">Y:</span>
+                          <Input
+                            type="number"
+                            step={0.1}
+                            className="h-5 text-[10px] w-14 px-1 text-center"
+                            value={aqDraft.rematch_y}
+                            onChange={(e) => setAqDraft({ ...aqDraft, rematch_y: parseFloat(e.target.value || '0') })}
+                          />
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="h-5 text-[10px] px-2 ml-auto"
+                            onClick={() => void testSingleClick(aqDraft.rematch_x, aqDraft.rematch_y, '한번더')}
+                          >
+                            클릭
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Step 3: Modal Yes */}
+                      <div className="space-y-1.5 pt-2 border-t border-border/30">
+                        <div className="flex items-center justify-between font-semibold text-foreground">
+                          <span>3단계 [팝업 '네'] (화면 중앙 좌측 확인)</span>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-[10px]">
+                          <span className="text-muted-foreground shrink-0">팝업창 대기 딜레이:</span>
+                          <Input
+                            type="number"
+                            step={100}
+                            className="h-5 text-[10px] w-18 px-1 text-center"
+                            value={aqDraft.modal_delay_ms}
+                            onChange={(e) => setAqDraft({ ...aqDraft, modal_delay_ms: Math.max(500, parseInt(e.target.value || '1000', 10)) })}
+                          />
+                          <span className="text-muted-foreground shrink-0">ms</span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-muted-foreground">X:</span>
+                          <Input
+                            type="number"
+                            step={0.1}
+                            className="h-5 text-[10px] w-14 px-1 text-center"
+                            value={aqDraft.modal_yes_x}
+                            onChange={(e) => setAqDraft({ ...aqDraft, modal_yes_x: parseFloat(e.target.value || '0') })}
+                          />
+                          <span className="text-muted-foreground">Y:</span>
+                          <Input
+                            type="number"
+                            step={0.1}
+                            className="h-5 text-[10px] w-14 px-1 text-center"
+                            value={aqDraft.modal_yes_y}
+                            onChange={(e) => setAqDraft({ ...aqDraft, modal_yes_y: parseFloat(e.target.value || '0') })}
+                          />
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="h-5 text-[10px] px-2 ml-auto"
+                            onClick={() => void testSingleClick(aqDraft.modal_yes_x, aqDraft.modal_yes_y, '네')}
+                          >
+                            클릭
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Simulation Button */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full h-7 text-xs font-semibold gap-1.5 border-primary/40 bg-primary/5 hover:bg-primary/20"
+                      onClick={() => void testStep('full_sequence')}
+                    >
+                      <Play className="h-3 w-3 text-primary" />
+                      전체 시퀀스 시뮬레이션 ({aqDraft.confirm_clicks}회 → 한번더 → 네)
+                    </Button>
+                  </div>
+                )}
 
                 {/* Live Compact Log */}
                 <div className="rounded bg-black/85 text-emerald-400 p-1.5 font-mono text-[10px] h-16 overflow-y-auto space-y-0.5 border border-border/40">

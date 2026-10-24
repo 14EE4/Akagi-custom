@@ -1930,57 +1930,206 @@ pub async fn test_auto_queue_step(
                 Err(e) => Err(e),
             }
         }
+        "rank_match" => {
+            let res = crate::autoplay::auto_queue::execute_click_with_indicator(
+                &state.autoplay_context,
+                aq.rank_match_x,
+                aq.rank_match_y,
+                "1. 단위전",
+                true,
+            ).await;
+            match res {
+                Ok((px, py, ..)) => Ok(format!("'단위전' 클릭 성공 ({:.2}, {:.2}) -> 실제 픽셀 ({:.0}px, {:.0}px)", aq.rank_match_x, aq.rank_match_y, px, py)),
+                Err(e) => Err(e),
+            }
+        }
+        "four_player" => {
+            let res = crate::autoplay::auto_queue::execute_click_with_indicator(
+                &state.autoplay_context,
+                aq.four_player_x,
+                aq.four_player_y,
+                "2. 4인 마작",
+                true,
+            ).await;
+            match res {
+                Ok((px, py, ..)) => Ok(format!("'4인 마작' 클릭 성공 ({:.2}, {:.2}) -> 실제 픽셀 ({:.0}px, {:.0}px)", aq.four_player_x, aq.four_player_y, px, py)),
+                Err(e) => Err(e),
+            }
+        }
+        "silver_room" => {
+            let res = crate::autoplay::auto_queue::execute_click_with_indicator(
+                &state.autoplay_context,
+                aq.room_card_x,
+                aq.room_card_y,
+                "3. 은탁",
+                true,
+            ).await;
+            match res {
+                Ok((px, py, ..)) => Ok(format!("'은탁' 클릭 성공 ({:.2}, {:.2}) -> 실제 픽셀 ({:.0}px, {:.0}px)", aq.room_card_x, aq.room_card_y, px, py)),
+                Err(e) => Err(e),
+            }
+        }
+        "hanchan" => {
+            let res = crate::autoplay::auto_queue::execute_click_with_indicator(
+                &state.autoplay_context,
+                aq.round_type_x,
+                aq.round_type_y,
+                "4. 반장전",
+                true,
+            ).await;
+            match res {
+                Ok((px, py, ..)) => Ok(format!("'반장전' 클릭 성공 ({:.2}, {:.2}) -> 실제 픽셀 ({:.0}px, {:.0}px)", aq.round_type_x, aq.round_type_y, px, py)),
+                Err(e) => Err(e),
+            }
+        }
+        "check_screen" => {
+            let page_guard = state.autoplay_context.page.read().await;
+            let Some(page) = page_guard.as_ref() else {
+                return Err("브라우저 페이지를 찾을 수 없습니다 (Chromium 미실행)".into());
+            };
+            let screen = crate::autoplay::cdp_input::evaluate_majsoul_screen_state(page).await
+                .map_err(|e| format!("화면 상태 감지 실패: {e:#}"))?;
+            let desc = match screen {
+                crate::autoplay::cdp_input::MajsoulScreenState::Lobby => "메인 로비 (Lobby) - 매칭 진입 가능",
+                crate::autoplay::cdp_input::MajsoulScreenState::GameEnd => "정산/결과 화면 (GameEnd) - 확인 클릭 필요",
+                crate::autoplay::cdp_input::MajsoulScreenState::InGame => "대국 진행 중 (InGame)",
+                crate::autoplay::cdp_input::MajsoulScreenState::Unknown => "기타/알 수 없음 (Unknown)",
+            };
+            Ok(format!("현재 작혼 화면 상태: {desc} ({screen:?})"))
+        }
         "full_sequence" => {
             let ctx = state.autoplay_context.clone();
             let notify = state.notify_bus.clone();
             tauri::async_runtime::spawn(async move {
-                let _ = notify.send(crate::schema::Notification {
-                    level: crate::schema::NotifyLevel::Info,
-                    title: "시퀀스 테스트 시작".into(),
-                    body: Some(format!("확인 {}회 -> 한번더 -> 네 시뮬레이션을 시작합니다.", aq.confirm_clicks)),
-                    sticky: false,
-                    id: Some("auto-queue-sim".into()),
-                });
+                if aq.strategy != "rematch" {
+                    // Lobby strategy simulation
+                    let _ = notify.send(crate::schema::Notification {
+                        level: crate::schema::NotifyLevel::Info,
+                        title: "로비 시퀀스 테스트 시작".into(),
+                        body: Some("로비 탈출 -> [단위전] -> [4인 마작] -> [은탁] -> [반장전] 시뮬레이션을 시작합니다.".into()),
+                        sticky: false,
+                        id: Some("auto-queue-sim".into()),
+                    });
 
-                // 초기 연출 대기
-                tokio::time::sleep(std::time::Duration::from_millis(aq.initial_delay_ms as u64)).await;
+                    // 1. Check if already in lobby; if not, do confirm clicks
+                    let page_guard = ctx.page.read().await;
+                    let cur_screen = if let Some(page) = page_guard.as_ref() {
+                        crate::autoplay::cdp_input::evaluate_majsoul_screen_state(page).await.unwrap_or(crate::autoplay::cdp_input::MajsoulScreenState::Unknown)
+                    } else {
+                        crate::autoplay::cdp_input::MajsoulScreenState::Unknown
+                    };
+                    drop(page_guard);
 
-                for i in 1..=aq.confirm_clicks {
+                    if cur_screen != crate::autoplay::cdp_input::MajsoulScreenState::Lobby {
+                        for i in 1..=aq.confirm_clicks {
+                            let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
+                                &ctx,
+                                aq.confirm_x,
+                                aq.confirm_y,
+                                &format!("확인/로비탈출 ({i}/{})", aq.confirm_clicks),
+                                true,
+                            ).await;
+                            tokio::time::sleep(std::time::Duration::from_millis(aq.confirm_delay_ms as u64)).await;
+                        }
+                    }
+
+                    tokio::time::sleep(std::time::Duration::from_millis(aq.lobby_step_delay_ms as u64)).await;
+
+                    // 2. Click 단위전
                     let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
                         &ctx,
-                        aq.confirm_x,
-                        aq.confirm_y,
-                        &format!("확인 ({i}/{})", aq.confirm_clicks),
+                        aq.rank_match_x,
+                        aq.rank_match_y,
+                        "1. 단위전",
                         true,
                     ).await;
-                    tokio::time::sleep(std::time::Duration::from_millis(aq.confirm_delay_ms as u64)).await;
+                    tokio::time::sleep(std::time::Duration::from_millis(aq.lobby_step_delay_ms as u64)).await;
+
+                    // 3. Click 4인 마작
+                    let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
+                        &ctx,
+                        aq.four_player_x,
+                        aq.four_player_y,
+                        "2. 4인 마작",
+                        true,
+                    ).await;
+                    tokio::time::sleep(std::time::Duration::from_millis(aq.lobby_step_delay_ms as u64)).await;
+
+                    // 4. Click 은탁
+                    let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
+                        &ctx,
+                        aq.room_card_x,
+                        aq.room_card_y,
+                        "3. 은탁",
+                        true,
+                    ).await;
+                    tokio::time::sleep(std::time::Duration::from_millis(aq.lobby_step_delay_ms as u64)).await;
+
+                    // 5. Click 반장전
+                    let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
+                        &ctx,
+                        aq.round_type_x,
+                        aq.round_type_y,
+                        "4. 반장전",
+                        true,
+                    ).await;
+
+                    let _ = notify.send(crate::schema::Notification {
+                        level: crate::schema::NotifyLevel::Success,
+                        title: "로비 시퀀스 테스트 완료".into(),
+                        body: Some("로비 단위전 자동 클릭 시뮬레이션이 완료되었습니다.".into()),
+                        sticky: false,
+                        id: Some("auto-queue-sim".into()),
+                    });
+                } else {
+                    // Legacy rematch simulation
+                    let _ = notify.send(crate::schema::Notification {
+                        level: crate::schema::NotifyLevel::Info,
+                        title: "시퀀스 테스트 시작".into(),
+                        body: Some(format!("확인 {}회 -> 한번더 -> 네 시뮬레이션을 시작합니다.", aq.confirm_clicks)),
+                        sticky: false,
+                        id: Some("auto-queue-sim".into()),
+                    });
+
+                    tokio::time::sleep(std::time::Duration::from_millis(aq.initial_delay_ms as u64)).await;
+
+                    for i in 1..=aq.confirm_clicks {
+                        let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
+                            &ctx,
+                            aq.confirm_x,
+                            aq.confirm_y,
+                            &format!("확인 ({i}/{})", aq.confirm_clicks),
+                            true,
+                        ).await;
+                        tokio::time::sleep(std::time::Duration::from_millis(aq.confirm_delay_ms as u64)).await;
+                    }
+
+                    tokio::time::sleep(std::time::Duration::from_millis(aq.rematch_delay_ms as u64)).await;
+                    let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
+                        &ctx,
+                        aq.rematch_x,
+                        aq.rematch_y,
+                        "한번더 (재전)",
+                        true,
+                    ).await;
+
+                    tokio::time::sleep(std::time::Duration::from_millis(aq.modal_delay_ms as u64)).await;
+                    let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
+                        &ctx,
+                        aq.modal_yes_x,
+                        aq.modal_yes_y,
+                        "네 (확인)",
+                        true,
+                    ).await;
+
+                    let _ = notify.send(crate::schema::Notification {
+                        level: crate::schema::NotifyLevel::Success,
+                        title: "시퀀스 테스트 완료".into(),
+                        body: Some("전체 클릭 시뮬레이션이 성공적으로 완료되었습니다.".into()),
+                        sticky: false,
+                        id: Some("auto-queue-sim".into()),
+                    });
                 }
-
-                tokio::time::sleep(std::time::Duration::from_millis(aq.rematch_delay_ms as u64)).await;
-                let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
-                    &ctx,
-                    aq.rematch_x,
-                    aq.rematch_y,
-                    "한번더 (재전)",
-                    true,
-                ).await;
-
-                tokio::time::sleep(std::time::Duration::from_millis(aq.modal_delay_ms as u64)).await;
-                let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
-                    &ctx,
-                    aq.modal_yes_x,
-                    aq.modal_yes_y,
-                    "네 (확인)",
-                    true,
-                ).await;
-
-                let _ = notify.send(crate::schema::Notification {
-                    level: crate::schema::NotifyLevel::Success,
-                    title: "시퀀스 테스트 완료".into(),
-                    body: Some("전체 클릭 시뮬레이션이 성공적으로 완료되었습니다.".into()),
-                    sticky: false,
-                    id: Some("auto-queue-sim".into()),
-                });
             });
             Ok("전체 시퀀스 시뮬레이션이 백그라운드에서 시작되었습니다.".into())
         }

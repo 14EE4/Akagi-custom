@@ -217,6 +217,56 @@ pub async fn evaluate_canvas_rect(page: &Page) -> Result<CanvasRect> {
     Ok(rect)
 }
 
+/// Majsoul screen states identified via LayaAir UI hierarchy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MajsoulScreenState {
+    /// In main lobby / menu / room selection.
+    Lobby,
+    /// In post-game settlement / result screens (`UI_GameEnd`).
+    GameEnd,
+    /// In active match (`UI_Desktop`).
+    InGame,
+    /// Unknown / not determined yet.
+    Unknown,
+}
+
+/// Evaluates current Majsoul UI state by probing `uiscript` Laya GUI singletons.
+pub async fn evaluate_majsoul_screen_state(page: &Page) -> Result<MajsoulScreenState> {
+    let expr = r#"(()=>{
+        try {
+            if (typeof uiscript !== 'undefined') {
+                if (uiscript.UI_Lobby && uiscript.UI_Lobby.Inst && uiscript.UI_Lobby.Inst.enable) {
+                    return 'lobby';
+                }
+                if (uiscript.UI_GameEnd && uiscript.UI_GameEnd.Inst && uiscript.UI_GameEnd.Inst.enable) {
+                    return 'game_end';
+                }
+                if (uiscript.UI_Desktop && uiscript.UI_Desktop.Inst && uiscript.UI_Desktop.Inst.enable) {
+                    return 'in_game';
+                }
+            }
+            return 'unknown';
+        } catch (_) {
+            return 'unknown';
+        }
+    })()"#;
+    let result = page
+        .evaluate(expr)
+        .await
+        .context("CDP evaluate majsoul screen state")?;
+    let val_str = result
+        .value()
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown");
+    Ok(match val_str {
+        "lobby" => MajsoulScreenState::Lobby,
+        "game_end" => MajsoulScreenState::GameEnd,
+        "in_game" => MajsoulScreenState::InGame,
+        _ => MajsoulScreenState::Unknown,
+    })
+}
+
 // ============================================================================
 // Tenhou actuation
 // ============================================================================

@@ -1,16 +1,19 @@
 //! Auto-queue subsystem: automatically searches for the next match after a game ends.
 //!
-//! Configurable sequence on game end:
-//! 1. EndGame event received on `MjaiBus`.
-//! 2. Check if auto-queue is enabled and increment match count.
-//! 3. If `max_matches > 0 && current_matches >= max_matches`, stop auto queue.
-//! 4. Step through settlement screens: click `confirm_x, confirm_y` for `confirm_clicks` times
-//!    with `confirm_delay_ms` delay between each click.
-//! 5. Final match result screen reached -> Wait randomized human-like delay with live countdown.
-//! 6. Click rematch ("한번더") button at `(rematch_x, rematch_y)`.
-//! 7. Wait `modal_delay_ms` for confirmation modal dialog to pop up.
-//! 8. Click modal confirmation ("네") button at `(modal_yes_x, modal_yes_y)`.
-//! 9. Client enters match queue!
+//! Two strategies supported:
+//! 1. "lobby" (Default, robust):
+//!    - EndGame event received on `MjaiBus`.
+//!    - Step through settlement screens by clicking bottom-right confirm `(confirm_x, confirm_y)`
+//!      until Chromium CDP detects that the game has transitioned to `MajsoulScreenState::Lobby`.
+//!    - Wait randomized human-like delay with live countdown.
+//!    - Sequential navigation in lobby: [단위전] -> [4인 마작] -> [은탁] -> [반장전].
+//!    - Client enters match queue!
+//!
+//! 2. "rematch" (Legacy):
+//!    - Step through settlement screens for fixed `confirm_clicks` times.
+//!    - Click rematch ("한번더") button at `(rematch_x, rematch_y)`.
+//!    - Wait `modal_delay_ms` for confirmation modal dialog to pop up.
+//!    - Click modal confirmation ("네") button at `(modal_yes_x, modal_yes_y)`.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -18,7 +21,10 @@ use rand::Rng;
 use tokio::sync::{broadcast::error::RecvError, RwLock};
 use tracing::{info, warn};
 
-use crate::autoplay::cdp_input::{dispatch_click, evaluate_canvas_rect, show_click_marker};
+use crate::autoplay::cdp_input::{
+    dispatch_click, evaluate_canvas_rect, evaluate_majsoul_screen_state, show_click_marker,
+    MajsoulScreenState,
+};
 use crate::autoplay::context::AutoplayContext;
 use crate::config::AppConfig;
 use crate::event_bus::{AutoQueueStatusBus, MjaiBus, NotifyBus};
@@ -151,7 +157,6 @@ pub async fn auto_queue_watcher(
                         format!("{current_matches}판 완료")
                     };
 
-                    // 3. Step through settlement screens: 확인(우하단)
                     {
                         let mut st = status.write().await;
                         st.state = "queuing".into();
@@ -159,10 +164,221 @@ pub async fn auto_queue_watcher(
                         let _ = status_bus.send(st.clone());
                     }
 
-                    // 대국 종료 직후 정산 화면 연출 대기
+                    // 대국 종료 직후 정산 연출 초기 대기
                     let initial_delay = Duration::from_millis(aq.initial_delay_ms.max(500) as u64);
                     tokio::time::sleep(initial_delay).await;
 
+                    if !cfg.read().await.autoplay.auto_queue.enabled {
+                        reset_status(&status, &status_bus).await;
+                        continue;
+                    }
+
+                    // -------------------------------------------------------------
+                    // Strategy 1: "lobby" (Exit to lobby, then click rank match)
+                    // -------------------------------------------------------------
+                    if aq.strategy != "rematch" {
+                        let lobby_max_clicks = aq.lobby_confirm_max.clamp(1, 20);
+                        let lobby_confirm_delay =
+                            Duration::from_millis(aq.lobby_confirm_delay_ms.max(500) as u64);
+
+                        let mut aborted = false;
+                        let mut reached_lobby = false;
+
+                        for click_idx in 1..=lobby_max_clicks {
+                            if !cfg.read().await.autoplay.auto_queue.enabled {
+                                aborted = true;
+                                break;
+                            }
+
+                            // 화면 상태 조회
+                            let screen = {
+                                let page_guard = ctx.page.read().await;
+                                if let Some(page) = page_guard.as_ref() {
+                                    evaluate_majsoul_screen_state(page)
+                                        .await
+                                        .unwrap_or(MajsoulScreenState::Unknown)
+                                } else {
+                                    MajsoulScreenState::Unknown
+                                }
+                            };
+
+                            if screen == MajsoulScreenState::Lobby {
+                                info!(
+                                    "auto_queue: lobby detected at check {click_idx}! (exited settlement cleanly)"
+                                );
+                                reached_lobby = true;
+                                break;
+                            }
+
+                            let label = format!("확인/로비탈출 ({click_idx}/{lobby_max_clicks})");
+                            info!(
+                                "auto_queue: clicking confirm ({click_idx}/{lobby_max_clicks}) at ({:.2}, {:.2})",
+                                aq.confirm_x, aq.confirm_y
+                            );
+                            if let Err(e) = execute_click_with_indicator(
+                                &ctx,
+                                aq.confirm_x,
+                                aq.confirm_y,
+                                &label,
+                                aq.show_click_indicator,
+                            )
+                            .await
+                            {
+                                warn!("auto_queue: confirm click failed: {e}");
+                            }
+
+                            tokio::time::sleep(lobby_confirm_delay).await;
+                        }
+
+                        if aborted {
+                            reset_status(&status, &status_bus).await;
+                            continue;
+                        }
+
+                        if !reached_lobby {
+                            warn!("auto_queue: reached max confirm clicks without detecting lobby; proceeding to navigation");
+                        }
+
+                        // 로비 최종 도달 확인 및 대기
+                        tokio::time::sleep(Duration::from_millis(1500)).await;
+
+                        // 휴식 딜레이 카운트다운
+                        let min_sec = aq.min_delay_sec.max(2);
+                        let max_sec = aq.max_delay_sec.max(min_sec);
+                        let delay_sec = rand::rng().random_range(min_sec..=max_sec);
+
+                        let _ = notify.send(Notification {
+                            level: NotifyLevel::Info,
+                            title: "자동 다음 대국 대기".into(),
+                            body: Some(format!(
+                                "{delay_sec}초 후 로비에서 단위전 매칭을 시작합니다. ({progress_str})"
+                            )),
+                            sticky: false,
+                            id: Some("auto-queue-waiting".into()),
+                        });
+
+                        let mut cancelled = false;
+                        for sec_left in (1..=delay_sec).rev() {
+                            {
+                                let mut st = status.write().await;
+                                st.state = "waiting".into();
+                                st.wait_seconds_left = Some(sec_left);
+                                let _ = status_bus.send(st.clone());
+                            }
+
+                            tokio::select! {
+                                _ = tokio::time::sleep(Duration::from_secs(1)) => {
+                                    let cur_enabled = cfg.read().await.autoplay.auto_queue.enabled;
+                                    if !cur_enabled {
+                                        info!("auto_queue: disabled by user during countdown");
+                                        cancelled = true;
+                                        break;
+                                    }
+                                }
+                                msg = rx.recv() => match msg {
+                                    Ok(MjaiEvent::StartGame { .. }) => {
+                                        info!("auto_queue: new game already started during countdown");
+                                        cancelled = true;
+                                        break;
+                                    }
+                                    Ok(_) | Err(RecvError::Lagged(_)) => {}
+                                    Err(RecvError::Closed) => return,
+                                }
+                            }
+                        }
+
+                        if cancelled {
+                            reset_status(&status, &status_bus).await;
+                            continue;
+                        }
+
+                        // 로비 단위전 순차 클릭 네비게이션
+                        {
+                            let mut st = status.write().await;
+                            st.state = "queuing".into();
+                            st.wait_seconds_left = None;
+                            let _ = status_bus.send(st.clone());
+                        }
+
+                        let step_delay =
+                            Duration::from_millis(aq.lobby_step_delay_ms.max(500) as u64);
+
+                        // 1. [단위전] 클릭
+                        info!(
+                            "auto_queue: clicking [단위전] button at ({:.2}, {:.2})",
+                            aq.rank_match_x, aq.rank_match_y
+                        );
+                        let _ = execute_click_with_indicator(
+                            &ctx,
+                            aq.rank_match_x,
+                            aq.rank_match_y,
+                            "1. 단위전",
+                            aq.show_click_indicator,
+                        )
+                        .await;
+                        tokio::time::sleep(step_delay).await;
+
+                        // 2. [4인 마작] 탭 클릭
+                        info!(
+                            "auto_queue: clicking [4인 마작] tab at ({:.2}, {:.2})",
+                            aq.four_player_x, aq.four_player_y
+                        );
+                        let _ = execute_click_with_indicator(
+                            &ctx,
+                            aq.four_player_x,
+                            aq.four_player_y,
+                            "2. 4인 마작",
+                            aq.show_click_indicator,
+                        )
+                        .await;
+                        tokio::time::sleep(step_delay).await;
+
+                        // 3. [은탁] 카드 클릭
+                        info!(
+                            "auto_queue: clicking [은탁] card at ({:.2}, {:.2})",
+                            aq.room_card_x, aq.room_card_y
+                        );
+                        let _ = execute_click_with_indicator(
+                            &ctx,
+                            aq.room_card_x,
+                            aq.room_card_y,
+                            "3. 은탁",
+                            aq.show_click_indicator,
+                        )
+                        .await;
+                        tokio::time::sleep(step_delay).await;
+
+                        // 4. [반장전] 버튼 클릭
+                        info!(
+                            "auto_queue: clicking [반장전] button at ({:.2}, {:.2})",
+                            aq.round_type_x, aq.round_type_y
+                        );
+                        let res = execute_click_with_indicator(
+                            &ctx,
+                            aq.round_type_x,
+                            aq.round_type_y,
+                            "4. 반장전",
+                            aq.show_click_indicator,
+                        )
+                        .await;
+
+                        if res.is_ok() {
+                            let _ = notify.send(Notification {
+                                level: NotifyLevel::Info,
+                                title: "다음 대국 매칭 시작".into(),
+                                body: Some(format!("은탁 반장전 대국을 검색 중입니다. ({progress_str})")),
+                                sticky: false,
+                                id: Some("auto-queue-matched".into()),
+                            });
+                        }
+
+                        reset_status(&status, &status_bus).await;
+                        continue;
+                    }
+
+                    // -------------------------------------------------------------
+                    // Strategy 2: "rematch" (Legacy: Click rematch on settlement screen)
+                    // -------------------------------------------------------------
                     let confirm_clicks = aq.confirm_clicks.clamp(1, 10);
                     let confirm_delay = Duration::from_millis(aq.confirm_delay_ms.max(500) as u64);
 
@@ -178,19 +394,15 @@ pub async fn auto_queue_watcher(
                             "auto_queue: clicking confirm ({step_idx}/{confirm_clicks}) at ({:.2}, {:.2})",
                             aq.confirm_x, aq.confirm_y
                         );
-                        if let Err(e) = execute_click_with_indicator(
+                        let _ = execute_click_with_indicator(
                             &ctx,
                             aq.confirm_x,
                             aq.confirm_y,
                             &label,
                             aq.show_click_indicator,
                         )
-                        .await
-                        {
-                            warn!("auto_queue: confirm click failed: {e}");
-                        }
+                        .await;
 
-                        // 각 확인 클릭 간 딜레이 대기
                         tokio::time::sleep(confirm_delay).await;
                     }
 
@@ -199,15 +411,14 @@ pub async fn auto_queue_watcher(
                         continue;
                     }
 
-                    // 최종 결과 화면 도달 대기
-                    let rematch_prep_delay = Duration::from_millis(aq.rematch_delay_ms.max(500) as u64);
+                    let rematch_prep_delay =
+                        Duration::from_millis(aq.rematch_delay_ms.max(500) as u64);
                     tokio::time::sleep(rematch_prep_delay).await;
                     if !cfg.read().await.autoplay.auto_queue.enabled {
                         reset_status(&status, &status_bus).await;
                         continue;
                     }
 
-                    // 4. Random delay countdown before clicking rematch
                     let min_sec = aq.min_delay_sec.max(2);
                     let max_sec = aq.max_delay_sec.max(min_sec);
                     let delay_sec = rand::rng().random_range(min_sec..=max_sec);
@@ -231,16 +442,13 @@ pub async fn auto_queue_watcher(
 
                         tokio::select! {
                             _ = tokio::time::sleep(Duration::from_secs(1)) => {
-                                let cur_enabled = cfg.read().await.autoplay.auto_queue.enabled;
-                                if !cur_enabled {
-                                    info!("auto_queue: disabled by user during countdown");
+                                if !cfg.read().await.autoplay.auto_queue.enabled {
                                     cancelled = true;
                                     break;
                                 }
                             }
                             msg = rx.recv() => match msg {
                                 Ok(MjaiEvent::StartGame { .. }) => {
-                                    info!("auto_queue: new game already started during countdown");
                                     cancelled = true;
                                     break;
                                 }
@@ -255,7 +463,7 @@ pub async fn auto_queue_watcher(
                         continue;
                     }
 
-                    // 5. Click "한번더" (우하단 우측에서 2번째, 확인 좌측)
+                    // Click "한번더"
                     {
                         let mut st = status.write().await;
                         st.state = "queuing".into();
@@ -263,23 +471,15 @@ pub async fn auto_queue_watcher(
                         let _ = status_bus.send(st.clone());
                     }
 
-                    info!(
-                        "auto_queue: clicking rematch '한번더' button at ({:.2}, {:.2})",
-                        aq.rematch_x, aq.rematch_y
-                    );
-                    if let Err(e) = execute_click_with_indicator(
+                    let _ = execute_click_with_indicator(
                         &ctx,
                         aq.rematch_x,
                         aq.rematch_y,
                         "한번더 (재전)",
                         aq.show_click_indicator,
                     )
-                    .await
-                    {
-                        warn!("auto_queue: rematch click failed: {e}");
-                    }
+                    .await;
 
-                    // 6. 창 뜨는 딜레이 대기
                     let modal_delay = Duration::from_millis(aq.modal_delay_ms.max(500) as u64);
                     tokio::time::sleep(modal_delay).await;
                     if !cfg.read().await.autoplay.auto_queue.enabled {
@@ -287,11 +487,7 @@ pub async fn auto_queue_watcher(
                         continue;
                     }
 
-                    // 7. 창 뜨면 가운데 (종으로 하단 가운데) 좌측 '네' 버튼 클릭
-                    info!(
-                        "auto_queue: clicking dialog confirm '네' button at ({:.2}, {:.2})",
-                        aq.modal_yes_x, aq.modal_yes_y
-                    );
+                    // Click "네"
                     let res = execute_click_with_indicator(
                         &ctx,
                         aq.modal_yes_x,
@@ -309,8 +505,6 @@ pub async fn auto_queue_watcher(
                             sticky: false,
                             id: Some("auto-queue-matched".into()),
                         });
-                    } else if let Err(e) = res {
-                        warn!("auto_queue: modal yes click failed: {e}");
                     }
 
                     reset_status(&status, &status_bus).await;

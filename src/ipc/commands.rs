@@ -2027,13 +2027,14 @@ pub async fn test_auto_queue_step(
             };
             let screen = crate::autoplay::cdp_input::evaluate_majsoul_screen_state(page).await
                 .map_err(|e| format!("화면 상태 감지 실패: {e:#}"))?;
+            let diag = crate::autoplay::cdp_input::probe_majsoul_diagnostics(page).await.unwrap_or_default();
             let desc = match screen {
                 crate::autoplay::cdp_input::MajsoulScreenState::Lobby => "메인 로비 (Lobby) - 매칭 진입 가능",
                 crate::autoplay::cdp_input::MajsoulScreenState::GameEnd => "정산/결과 화면 (GameEnd) - 확인 클릭 필요",
                 crate::autoplay::cdp_input::MajsoulScreenState::InGame => "대국 진행 중 (InGame)",
                 crate::autoplay::cdp_input::MajsoulScreenState::Unknown => "기타/알 수 없음 (Unknown)",
             };
-            Ok(format!("현재 작혼 화면 상태: {desc} ({screen:?})"))
+            Ok(format!("현재 작혼 화면 상태: {desc} ({screen:?}) [{diag}]"))
         }
         "stop" => {
             let was_running = SIM_RUNNING.swap(false, std::sync::atomic::Ordering::SeqCst);

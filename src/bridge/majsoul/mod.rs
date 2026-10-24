@@ -1541,7 +1541,7 @@ impl Bridge for MajsoulBridge {
                     msg.method_name,
                     msg.payload
                 );
-                if msg.method_name.starts_with(".lq.Lobby.") {
+                if msg.method_name.starts_with(".lq.Lobby.") && !msg.method_name.ends_with(".heatbeat") {
                     record_lobby_packet();
                 }
                 if let Some(log) = &self.flow_log {
@@ -1581,7 +1581,7 @@ impl Bridge for MajsoulBridge {
                         ready_resp.method_name,
                         ready_resp.payload
                     );
-                    if ready_resp.method_name.starts_with(".lq.Lobby.") {
+                    if ready_resp.method_name.starts_with(".lq.Lobby.") && !ready_resp.method_name.ends_with(".heatbeat") {
                         record_lobby_packet();
                     }
                     if let Some(log) = &self.flow_log {

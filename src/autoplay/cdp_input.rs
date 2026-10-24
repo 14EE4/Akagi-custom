@@ -231,7 +231,7 @@ pub enum MajsoulScreenState {
     Unknown,
 }
 
-/// Evaluates current Majsoul UI state by probing `uiscript`, `view`, and Laya GUI singletons.
+/// Evaluates current Majsoul UI state by probing `uiscript`, `view`, and Laya/Unity singletons.
 pub async fn evaluate_majsoul_screen_state(page: &Page) -> Result<MajsoulScreenState> {
     let expr = r#"(()=>{
         try {
@@ -239,14 +239,14 @@ pub async fn evaluate_majsoul_screen_state(page: &Page) -> Result<MajsoulScreenS
             const v = typeof view !== 'undefined' ? view : (window.view || null);
             const g = typeof game !== 'undefined' ? game : (window.game || null);
 
-            // 1. In-game check
+            // 1. Legacy LayaAir In-game check
             const in_desktop = !!(
-                (v && v.DesktopMgr && v.DesktopMgr.Inst && (v.DesktopMgr.Inst.active || v.DesktopMgr.Inst.mode !== undefined)) ||
+                (v && v.DesktopMgr && v.DesktopMgr.Inst && v.DesktopMgr.Inst.active) ||
                 (g && g.Scene_MJ && g.Scene_MJ.Inst && g.Scene_MJ.Inst.active) ||
                 (u && u.UI_Desktop && u.UI_Desktop.Inst && u.UI_Desktop.Inst.visible !== false && u.UI_Desktop.Inst.enable !== false)
             );
 
-            // 2. Settlement / GameEnd check
+            // 2. Legacy LayaAir Settlement / GameEnd check
             if (u && u.UI_GameEnd && u.UI_GameEnd.Inst) {
                 const ge = u.UI_GameEnd.Inst;
                 if (ge.visible || ge.enable || ge.active) {
@@ -258,18 +258,23 @@ pub async fn evaluate_majsoul_screen_state(page: &Page) -> Result<MajsoulScreenS
                 return 'in_game';
             }
 
-            // 3. Lobby check
+            // 3. Legacy LayaAir Lobby check
             if (u && u.UI_Lobby && u.UI_Lobby.Inst) {
                 const lb = u.UI_Lobby.Inst;
-                // Check common LayaAir node visibility flags
                 const is_visible = (lb.visible !== false) && (lb._visible !== false) && (lb.enable !== false);
                 if (is_visible || lb.page_lobby || lb.topbar) {
                     return 'lobby';
                 }
             }
 
-            // Fallback: If uiscript exists and we are not in an active match, we are in the lobby/menu
             if (u && !in_desktop) {
+                return 'lobby';
+            }
+
+            // 4. Unity WebGL fallback: Canvas check
+            const canvas = document.getElementsByTagName('canvas')[0];
+            if (canvas && canvas.width > 0 && canvas.height > 0) {
+                // If game canvas exists in Unity WebGL mode without desktop active, default to lobby
                 return 'lobby';
             }
 
@@ -303,6 +308,18 @@ pub async fn probe_majsoul_diagnostics(page: &Page) -> Result<String> {
             const g = typeof game !== 'undefined' ? game : (window.game || null);
             const info = [];
 
+            const canvas = document.getElementsByTagName('canvas')[0];
+            if (canvas) {
+                info.push("Canvas:" + canvas.width + "x" + canvas.height);
+            } else {
+                info.push("Canvas:None");
+            }
+
+            const has_unity = typeof unityInstance !== 'undefined' || typeof createUnityInstance !== 'undefined' || typeof UnityLoader !== 'undefined';
+            if (has_unity) {
+                info.push("Unity:O");
+            }
+
             if (u) {
                 info.push("uiscript:O");
                 if (u.UI_Lobby) {
@@ -316,19 +333,12 @@ pub async fn probe_majsoul_diagnostics(page: &Page) -> Result<String> {
                 } else {
                     info.push("UI_Lobby:X");
                 }
-                if (u.UI_GameEnd) {
-                    info.push("GameEnd:O(Inst=" + !!u.UI_GameEnd.Inst + ")");
-                }
             } else {
-                info.push("uiscript:X");
+                info.push("Engine:Unity_WebGL");
             }
 
-            if (v && v.DesktopMgr) {
-                info.push("DesktopMgr:" + (v.DesktopMgr.Inst ? (v.DesktopMgr.Inst.active ? "active" : "inactive") : "null"));
-            }
-
-            if (typeof Laya !== 'undefined') {
-                info.push("Laya:O");
+            if (document.title) {
+                info.push("Title:" + document.title);
             }
 
             return info.join(", ");

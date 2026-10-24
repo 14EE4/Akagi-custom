@@ -22,8 +22,7 @@ use tokio::sync::{broadcast::error::RecvError, RwLock};
 use tracing::{info, warn};
 
 use crate::autoplay::cdp_input::{
-    dispatch_click, evaluate_canvas_rect, evaluate_majsoul_screen_state, show_click_marker,
-    MajsoulScreenState,
+    dispatch_click, evaluate_canvas_rect, show_click_marker,
 };
 use crate::autoplay::context::AutoplayContext;
 use crate::config::AppConfig;
@@ -177,42 +176,21 @@ pub async fn auto_queue_watcher(
                     // Strategy 1: "lobby" (Exit to lobby, then click rank match)
                     // -------------------------------------------------------------
                     if aq.strategy != "rematch" {
-                        let lobby_max_clicks = aq.lobby_confirm_max.clamp(1, 20);
-                        let lobby_confirm_delay =
+                        let confirm_clicks = aq.confirm_clicks.clamp(1, 10);
+                        let confirm_delay =
                             Duration::from_millis(aq.lobby_confirm_delay_ms.max(500) as u64);
 
                         let mut aborted = false;
-                        let mut reached_lobby = false;
 
-                        for click_idx in 1..=lobby_max_clicks {
+                        for click_idx in 1..=confirm_clicks {
                             if !cfg.read().await.autoplay.auto_queue.enabled {
                                 aborted = true;
                                 break;
                             }
 
-                            // 화면 상태 조회
-                            let screen = {
-                                let page_guard = ctx.page.read().await;
-                                if let Some(page) = page_guard.as_ref() {
-                                    evaluate_majsoul_screen_state(page)
-                                        .await
-                                        .unwrap_or(MajsoulScreenState::Unknown)
-                                } else {
-                                    MajsoulScreenState::Unknown
-                                }
-                            };
-
-                            if screen == MajsoulScreenState::Lobby {
-                                info!(
-                                    "auto_queue: lobby detected at check {click_idx}! (exited settlement cleanly)"
-                                );
-                                reached_lobby = true;
-                                break;
-                            }
-
-                            let label = format!("확인/로비탈출 ({click_idx}/{lobby_max_clicks})");
+                            let label = format!("확인/로비탈출 ({click_idx}/{confirm_clicks})");
                             info!(
-                                "auto_queue: clicking confirm ({click_idx}/{lobby_max_clicks}) at ({:.2}, {:.2})",
+                                "auto_queue: clicking confirm ({click_idx}/{confirm_clicks}) at ({:.2}, {:.2})",
                                 aq.confirm_x, aq.confirm_y
                             );
                             if let Err(e) = execute_click_with_indicator(
@@ -227,7 +205,7 @@ pub async fn auto_queue_watcher(
                                 warn!("auto_queue: confirm click failed: {e}");
                             }
 
-                            tokio::time::sleep(lobby_confirm_delay).await;
+                            tokio::time::sleep(confirm_delay).await;
                         }
 
                         if aborted {
@@ -235,11 +213,9 @@ pub async fn auto_queue_watcher(
                             continue;
                         }
 
-                        if !reached_lobby {
-                            warn!("auto_queue: reached max confirm clicks without detecting lobby; proceeding to navigation");
-                        }
+                        info!("auto_queue: completed settlement confirm clicks ({confirm_clicks} clicks); now in lobby, proceeding to matchmaking sequence");
 
-                        // 로비 최종 도달 확인 및 대기
+                        // 로비 최종 도달 안정화 대기
                         tokio::time::sleep(Duration::from_millis(1500)).await;
 
                         // 휴식 딜레이 카운트다운

@@ -2025,8 +2025,15 @@ pub async fn test_auto_queue_step(
             let Some(page) = page_guard.as_ref() else {
                 return Err("브라우저 페이지를 찾을 수 없습니다 (Chromium 미실행)".into());
             };
-            let screen = crate::autoplay::cdp_input::evaluate_majsoul_screen_state(page).await
+            let in_game = {
+                let tracker = state.game_tracker.lock().await;
+                tracker.snapshot().is_some()
+            };
+            let mut screen = crate::autoplay::cdp_input::evaluate_majsoul_screen_state(page).await
                 .map_err(|e| format!("화면 상태 감지 실패: {e:#}"))?;
+            if in_game {
+                screen = crate::autoplay::cdp_input::MajsoulScreenState::InGame;
+            }
             let diag = crate::autoplay::cdp_input::probe_majsoul_diagnostics(page).await.unwrap_or_default();
             let desc = match screen {
                 crate::autoplay::cdp_input::MajsoulScreenState::Lobby => "메인 로비 (Lobby) - 매칭 진입 가능",
@@ -2034,7 +2041,9 @@ pub async fn test_auto_queue_step(
                 crate::autoplay::cdp_input::MajsoulScreenState::InGame => "대국 진행 중 (InGame)",
                 crate::autoplay::cdp_input::MajsoulScreenState::Unknown => "기타/알 수 없음 (Unknown)",
             };
-            Ok(format!("현재 작혼 화면 상태: {desc} ({screen:?}) [{diag}]"))
+            let log_msg = format!("현재 작혼 화면 상태: {desc} ({screen:?}) [{diag}, in_game={in_game}]");
+            tracing::info!(target: "akagi::autoplay", "{log_msg}");
+            Ok(log_msg)
         }
         "stop" => {
             let was_running = SIM_RUNNING.swap(false, std::sync::atomic::Ordering::SeqCst);

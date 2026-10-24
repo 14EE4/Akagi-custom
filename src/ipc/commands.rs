@@ -1881,6 +1881,44 @@ pub async fn test_click_canvas(
     }
 }
 
+static SIM_RUNNING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+async fn interruptible_sleep(duration_ms: u64) -> bool {
+    let interval = 100;
+    let mut elapsed = 0;
+    while elapsed < duration_ms {
+        if !SIM_RUNNING.load(std::sync::atomic::Ordering::SeqCst) {
+            return false;
+        }
+        let step = interval.min(duration_ms - elapsed);
+        tokio::time::sleep(std::time::Duration::from_millis(step)).await;
+        elapsed += step;
+    }
+    SIM_RUNNING.load(std::sync::atomic::Ordering::SeqCst)
+}
+
+#[tauri::command]
+pub async fn stop_auto_queue_simulation(state: State<'_, AppState>) -> CmdResult<String> {
+    let was_running = SIM_RUNNING.swap(false, std::sync::atomic::Ordering::SeqCst);
+    if was_running {
+        let _ = state.notify_bus.send(crate::schema::Notification {
+            level: crate::schema::NotifyLevel::Warn,
+            title: "시뮬레이션 중지".into(),
+            body: Some("자동 대국 시뮬레이션이 즉시 중단되었습니다.".into()),
+            sticky: false,
+            id: Some("auto-queue-sim".into()),
+        });
+        Ok("시뮬레이션이 중지되었습니다.".into())
+    } else {
+        Ok("현재 실행 중인 시뮬레이션이 없습니다.".into())
+    }
+}
+
+#[tauri::command]
+pub async fn is_auto_queue_sim_running() -> CmdResult<bool> {
+    Ok(SIM_RUNNING.load(std::sync::atomic::Ordering::SeqCst))
+}
+
 #[tauri::command]
 pub async fn test_auto_queue_step(
     step: String,
@@ -1997,7 +2035,23 @@ pub async fn test_auto_queue_step(
             };
             Ok(format!("현재 작혼 화면 상태: {desc} ({screen:?})"))
         }
+        "stop" => {
+            let was_running = SIM_RUNNING.swap(false, std::sync::atomic::Ordering::SeqCst);
+            if was_running {
+                let _ = state.notify_bus.send(crate::schema::Notification {
+                    level: crate::schema::NotifyLevel::Warn,
+                    title: "시뮬레이션 중지".into(),
+                    body: Some("자동 대국 시뮬레이션이 즉시 중단되었습니다.".into()),
+                    sticky: false,
+                    id: Some("auto-queue-sim".into()),
+                });
+                Ok("시뮬레이션이 중지되었습니다.".into())
+            } else {
+                Ok("현재 실행 중인 시뮬레이션이 없습니다.".into())
+            }
+        }
         "full_sequence" => {
+            SIM_RUNNING.store(true, std::sync::atomic::Ordering::SeqCst);
             let ctx = state.autoplay_context.clone();
             let notify = state.notify_bus.clone();
             tauri::async_runtime::spawn(async move {
@@ -2022,6 +2076,9 @@ pub async fn test_auto_queue_step(
 
                     if cur_screen != crate::autoplay::cdp_input::MajsoulScreenState::Lobby {
                         for i in 1..=aq.confirm_clicks {
+                            if !SIM_RUNNING.load(std::sync::atomic::Ordering::SeqCst) {
+                                return;
+                            }
                             let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
                                 &ctx,
                                 aq.confirm_x,
@@ -2029,11 +2086,15 @@ pub async fn test_auto_queue_step(
                                 &format!("확인/로비탈출 ({i}/{})", aq.confirm_clicks),
                                 true,
                             ).await;
-                            tokio::time::sleep(std::time::Duration::from_millis(aq.confirm_delay_ms as u64)).await;
+                            if !interruptible_sleep(aq.confirm_delay_ms as u64).await {
+                                return;
+                            }
                         }
                     }
 
-                    tokio::time::sleep(std::time::Duration::from_millis(aq.lobby_step_delay_ms as u64)).await;
+                    if !interruptible_sleep(aq.lobby_step_delay_ms as u64).await {
+                        return;
+                    }
 
                     // 1. Click 단위전 (11.5, 2.8)
                     let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
@@ -2043,7 +2104,9 @@ pub async fn test_auto_queue_step(
                         "1. 단위전",
                         true,
                     ).await;
-                    tokio::time::sleep(std::time::Duration::from_millis(aq.lobby_step_delay_ms as u64)).await;
+                    if !interruptible_sleep(aq.lobby_step_delay_ms as u64).await {
+                        return;
+                    }
 
                     // 2. Click 은탁 (11.5, 4.6)
                     let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
@@ -2053,7 +2116,9 @@ pub async fn test_auto_queue_step(
                         "2. 은탁",
                         true,
                     ).await;
-                    tokio::time::sleep(std::time::Duration::from_millis(aq.lobby_step_delay_ms as u64)).await;
+                    if !interruptible_sleep(aq.lobby_step_delay_ms as u64).await {
+                        return;
+                    }
 
                     // 3. Click 4인 반장전 (은탁과 위치 동일: 11.5, 4.6)
                     let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
@@ -2064,6 +2129,7 @@ pub async fn test_auto_queue_step(
                         true,
                     ).await;
 
+                    SIM_RUNNING.store(false, std::sync::atomic::Ordering::SeqCst);
                     let _ = notify.send(crate::schema::Notification {
                         level: crate::schema::NotifyLevel::Success,
                         title: "로비 시퀀스 테스트 완료".into(),
@@ -2081,9 +2147,14 @@ pub async fn test_auto_queue_step(
                         id: Some("auto-queue-sim".into()),
                     });
 
-                    tokio::time::sleep(std::time::Duration::from_millis(aq.initial_delay_ms as u64)).await;
+                    if !interruptible_sleep(aq.initial_delay_ms as u64).await {
+                        return;
+                    }
 
                     for i in 1..=aq.confirm_clicks {
+                        if !SIM_RUNNING.load(std::sync::atomic::Ordering::SeqCst) {
+                            return;
+                        }
                         let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
                             &ctx,
                             aq.confirm_x,
@@ -2091,10 +2162,15 @@ pub async fn test_auto_queue_step(
                             &format!("확인 ({i}/{})", aq.confirm_clicks),
                             true,
                         ).await;
-                        tokio::time::sleep(std::time::Duration::from_millis(aq.confirm_delay_ms as u64)).await;
+                        if !interruptible_sleep(aq.confirm_delay_ms as u64).await {
+                            return;
+                        }
                     }
 
-                    tokio::time::sleep(std::time::Duration::from_millis(aq.rematch_delay_ms as u64)).await;
+                    if !interruptible_sleep(aq.rematch_delay_ms as u64).await {
+                        return;
+                    }
+
                     let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
                         &ctx,
                         aq.rematch_x,
@@ -2103,7 +2179,10 @@ pub async fn test_auto_queue_step(
                         true,
                     ).await;
 
-                    tokio::time::sleep(std::time::Duration::from_millis(aq.modal_delay_ms as u64)).await;
+                    if !interruptible_sleep(aq.modal_delay_ms as u64).await {
+                        return;
+                    }
+
                     let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
                         &ctx,
                         aq.modal_yes_x,
@@ -2112,6 +2191,7 @@ pub async fn test_auto_queue_step(
                         true,
                     ).await;
 
+                    SIM_RUNNING.store(false, std::sync::atomic::Ordering::SeqCst);
                     let _ = notify.send(crate::schema::Notification {
                         level: crate::schema::NotifyLevel::Success,
                         title: "시퀀스 테스트 완료".into(),
@@ -2165,6 +2245,8 @@ macro_rules! ipc_handlers {
             $crate::ipc::commands::set_auto_queue_enabled,
             $crate::ipc::commands::test_click_canvas,
             $crate::ipc::commands::test_auto_queue_step,
+            $crate::ipc::commands::stop_auto_queue_simulation,
+            $crate::ipc::commands::is_auto_queue_sim_running,
             $crate::ipc::commands::get_capture_status,
             $crate::ipc::commands::detect_system_chrome,
             $crate::ipc::commands::list_cft_installed,

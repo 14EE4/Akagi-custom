@@ -8,6 +8,7 @@ import {
   Maximize2,
   PanelTopClose,
   Play,
+  Square,
   RefreshCw,
   RotateCcw,
   Settings2,
@@ -48,6 +49,7 @@ export function PlayClient() {
   const [autoQueueDebugOpen, setAutoQueueDebugOpen] = useState(false)
   const [hudMinimized, setHudMinimized] = useState(false)
   const [hudSide, setHudSide] = useState<'left' | 'right'>('right')
+  const [isSimulating, setIsSimulating] = useState(false)
   const [debugLogs, setDebugLogs] = useState<string[]>([])
   const [aqDraft, setAqDraft] = useState({
     max_matches: 0,
@@ -179,13 +181,32 @@ export function PlayClient() {
   const testStep = async (step: string) => {
     if (!HAS_TAURI) return
     try {
+      if (step === 'full_sequence') {
+        setIsSimulating(true)
+      } else if (step === 'stop') {
+        setIsSimulating(false)
+      }
       const res = await invoke<string>('test_auto_queue_step', { step })
       appendDebugLog(`[${step}] ${res}`)
       toast.success(res)
     } catch (e: any) {
+      setIsSimulating(false)
       const msg = e?.message || String(e)
       appendDebugLog(`[${step}] 오류: ${msg}`)
       toast.error(`실패: ${msg}`)
+    }
+  }
+
+  const stopSimulation = async () => {
+    if (!HAS_TAURI) return
+    try {
+      const res = await invoke<string>('stop_auto_queue_simulation')
+      appendDebugLog(`[중지] ${res}`)
+      setIsSimulating(false)
+      toast.info(res)
+    } catch (e: any) {
+      setIsSimulating(false)
+      toast.error(`중지 실패: ${e?.message || e}`)
     }
   }
 
@@ -989,15 +1010,27 @@ export function PlayClient() {
                     </div>
 
                     {/* Simulation Button for Lobby */}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full h-7 text-xs font-semibold gap-1.5 border-primary/40 bg-primary/5 hover:bg-primary/20"
-                      onClick={() => void testStep('full_sequence')}
-                    >
-                      <Play className="h-3 w-3 text-primary" />
-                      전체 로비 시뮬레이션 (단위전 → 은탁 → 4인 반장전)
-                    </Button>
+                    {isSimulating ? (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="w-full h-7 text-xs font-semibold gap-1.5 animate-pulse bg-destructive hover:bg-destructive/90 text-destructive-foreground shadow"
+                        onClick={() => void stopSimulation()}
+                      >
+                        <Square className="h-3 w-3 fill-current" />
+                        시뮬레이션 중지 (클릭 시 즉각 중단)
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full h-7 text-xs font-semibold gap-1.5 border-primary/40 bg-primary/5 hover:bg-primary/20"
+                        onClick={() => void testStep('full_sequence')}
+                      >
+                        <Play className="h-3 w-3 text-primary" />
+                        전체 로비 시뮬레이션 (단위전 → 은탁 → 4인 반장전)
+                      </Button>
+                    )}
                   </div>
                 ) : (
                   /* Legacy Rematch View */
@@ -1224,15 +1257,27 @@ export function PlayClient() {
                     </div>
 
                     {/* Simulation Button */}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full h-7 text-xs font-semibold gap-1.5 border-primary/40 bg-primary/5 hover:bg-primary/20"
-                      onClick={() => void testStep('full_sequence')}
-                    >
-                      <Play className="h-3 w-3 text-primary" />
-                      전체 시퀀스 시뮬레이션 ({aqDraft.confirm_clicks}회 → 한번더 → 네)
-                    </Button>
+                    {isSimulating ? (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="w-full h-7 text-xs font-semibold gap-1.5 animate-pulse bg-destructive hover:bg-destructive/90 text-destructive-foreground shadow"
+                        onClick={() => void stopSimulation()}
+                      >
+                        <Square className="h-3 w-3 fill-current" />
+                        시뮬레이션 중지 (클릭 시 즉각 중단)
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full h-7 text-xs font-semibold gap-1.5 border-primary/40 bg-primary/5 hover:bg-primary/20"
+                        onClick={() => void testStep('full_sequence')}
+                      >
+                        <Play className="h-3 w-3 text-primary" />
+                        전체 시퀀스 시뮬레이션 ({aqDraft.confirm_clicks}회 → 한번더 → 네)
+                      </Button>
+                    )}
                   </div>
                 )}
 

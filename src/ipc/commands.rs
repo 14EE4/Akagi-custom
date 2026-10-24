@@ -2027,7 +2027,7 @@ pub async fn test_auto_queue_step(
             };
             let in_game = {
                 let tracker = state.game_tracker.lock().await;
-                tracker.snapshot().is_some()
+                tracker.is_game_active()
             };
             let mut screen = crate::autoplay::cdp_input::evaluate_majsoul_screen_state(page).await
                 .map_err(|e| format!("화면 상태 감지 실패: {e:#}"))?;

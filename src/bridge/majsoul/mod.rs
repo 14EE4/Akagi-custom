@@ -1594,13 +1594,24 @@ impl Bridge for MajsoulBridge {
                 );
                 if msg.method_name.starts_with(".lq.Lobby.") && !msg.method_name.ends_with(".heatbeat") {
                     record_lobby_packet();
-                    // 정산 중 오가는 fetchAccountInfo, fetchRoom, logReport 등 백그라운드 패킷은 무시하고,
-                    // 오직 매칭 요청(startUnifiedMatch)이 발생할 때에만 정산 완료 처리
-                    if msg.method_name.ends_with(".startUnifiedMatch") && is_settling() {
+                    info!(
+                        target: "akagi::bridge::majsoul",
+                        "[LOBBY_PACKET] {direction:?} {kind} {} (is_settling={})",
+                        msg.method_name,
+                        is_settling()
+                    );
+                    // 메인 로비 진입을 나타내는 결정적 패킷: loginBeat, fetchAccountActivityData, leaveRoom, startUnifiedMatch
+                    // (정산 중 주기적으로 오가는 fetchAccountInfo, fetchRoom, logReport 등은 제외)
+                    let is_main_lobby_entry = msg.method_name.ends_with(".loginBeat")
+                        || msg.method_name.ends_with(".fetchAccountActivityData")
+                        || msg.method_name.ends_with(".leaveRoom")
+                        || msg.method_name.ends_with(".startUnifiedMatch");
+
+                    if is_main_lobby_entry && is_settling() {
                         record_settlement_finished();
                         info!(
                             target: "akagi::bridge::majsoul",
-                            "match request detected ({}) -> settlement finished, transitioned to Lobby",
+                            "[LOBBY_PACKET] ★★★ 메인 화면(로비) 진입 패킷 감지: {} -> 정산 완료(Lobby 전환) ★★★",
                             msg.method_name
                         );
                     }
@@ -1644,11 +1655,22 @@ impl Bridge for MajsoulBridge {
                     );
                     if ready_resp.method_name.starts_with(".lq.Lobby.") && !ready_resp.method_name.ends_with(".heatbeat") {
                         record_lobby_packet();
-                        if ready_resp.method_name.ends_with(".startUnifiedMatch") && is_settling() {
+                        info!(
+                            target: "akagi::bridge::majsoul",
+                            "[LOBBY_PACKET] down RESPONSE {} (is_settling={})",
+                            ready_resp.method_name,
+                            is_settling()
+                        );
+                        let is_main_lobby_entry = ready_resp.method_name.ends_with(".loginBeat")
+                            || ready_resp.method_name.ends_with(".fetchAccountActivityData")
+                            || ready_resp.method_name.ends_with(".leaveRoom")
+                            || ready_resp.method_name.ends_with(".startUnifiedMatch");
+
+                        if is_main_lobby_entry && is_settling() {
                             record_settlement_finished();
                             info!(
                                 target: "akagi::bridge::majsoul",
-                                "match request detected ({}) -> settlement finished, transitioned to Lobby",
+                                "[LOBBY_PACKET] ★★★ 메인 화면(로비) 진입 응답 감지: {} -> 정산 완료(Lobby 전환) ★★★",
                                 ready_resp.method_name
                             );
                         }

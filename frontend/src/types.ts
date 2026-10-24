@@ -189,7 +189,7 @@ export type AutoQueueStatus = {
   enabled: boolean
   current_matches: number
   max_matches: number
-  state: 'idle' | 'waiting' | 'queuing'
+  state: 'idle' | 'waiting' | 'queuing' | 'in_game'
   wait_seconds_left?: number | null
 }
 

@@ -100,7 +100,16 @@ pub async fn auto_queue_watcher(
     loop {
         match rx.recv().await {
             Ok(ev) => match ev {
+                MjaiEvent::StartGame { .. } | MjaiEvent::StartKyoku { .. } => {
+                    let mut st = status.write().await;
+                    if st.state != "in_game" {
+                        st.state = "in_game".into();
+                        st.wait_seconds_left = None;
+                        let _ = status_bus.send(st.clone());
+                    }
+                }
                 MjaiEvent::EndGame { .. } => {
+                    crate::bridge::majsoul::record_game_end();
                     let game_end_time_ms = std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
                         .unwrap_or_default()

@@ -428,11 +428,6 @@ export function PlayClient() {
       {/* Top compact control & AI recommendation bar */}
       <header className="h-11 shrink-0 px-3 border-b border-border bg-card/80 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0 overflow-hidden">
-          <span className="font-semibold text-sm whitespace-nowrap flex items-center gap-1.5">
-            <Play className="h-4 w-4 text-primary" />
-            작혼 (Mahjong Soul)
-          </span>
-          <div className="h-4 w-px bg-border shrink-0" />
           <div className="flex items-center gap-2 min-w-0 overflow-x-auto no-scrollbar text-xs">
             <span className="text-muted-foreground whitespace-nowrap">AI 추천:</span>
             {topSuggestions.length === 0 ? (

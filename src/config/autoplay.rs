@@ -326,7 +326,7 @@ impl Default for AutoQueueConfig {
             show_click_indicator: true,
             strategy: "lobby".to_string(),
             lobby_confirm_max: 8,
-            lobby_confirm_delay_ms: 3500,
+            lobby_confirm_delay_ms: 4500,
             rank_match_x: 11.5,
             rank_match_y: 2.8,
             four_player_x: 4.5,

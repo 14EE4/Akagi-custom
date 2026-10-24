@@ -1552,7 +1552,7 @@ export function PlayClient() {
                   )}
                 </div>
 
-                <div className="flex-1 bg-zinc-950/80 rounded-lg border border-border/50 p-2 overflow-y-auto space-y-1 font-mono text-[10px] max-h-72">
+                <div className="flex-1 bg-zinc-950/80 rounded-lg border border-border/50 p-2 overflow-y-auto space-y-1 font-mono text-[10px] max-h-72 select-text cursor-text">
                   {debugLogs.length === 0 ? (
                     <div className="text-zinc-500 text-center py-6 select-none">
                       로그가 여기에 실시간으로 표시됩니다

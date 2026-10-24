@@ -460,40 +460,11 @@ export function PlayClient() {
     <div className="flex flex-col w-full h-full min-h-0 overflow-hidden bg-background">
       {/* Top compact control & AI recommendation bar */}
       <header className="h-11 shrink-0 px-3 border-b border-border bg-card/80 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0 overflow-hidden">
-          <div className="flex items-center gap-2 min-w-0 overflow-x-auto no-scrollbar text-xs">
-            <span className="text-muted-foreground whitespace-nowrap">AI 추천:</span>
-            {topSuggestions.length === 0 ? (
-              <span className="text-muted-foreground/70 whitespace-nowrap">대국 대기 중</span>
-            ) : (
-              topSuggestions.map((item, idx) => (
-                <span
-                  key={idx}
-                  className={
-                    idx === 0
-                      ? 'inline-flex items-center gap-1.5 rounded px-2 py-0.5 font-semibold bg-primary/15 text-primary border border-primary/30 whitespace-nowrap shadow-xs'
-                      : 'inline-flex items-center gap-1 rounded px-1.5 py-0.5 bg-muted text-muted-foreground border border-border/40 whitespace-nowrap'
-                  }
-                >
-                  <span className={idx === 0 ? 'text-primary font-bold' : ''}>
-                    {item.pais?.join(' ') || item.tiles || '—'}
-                  </span>
-                  {item.label && <span className="opacity-75 text-[10px]">({item.label})</span>}
-                  {item.value && (
-                    <span
-                      className={
-                        idx === 0
-                          ? 'font-mono text-[11px] font-bold px-1 rounded bg-primary/20 text-primary'
-                          : 'font-mono text-[10px] font-medium text-foreground/80'
-                      }
-                    >
-                      {item.value}
-                    </span>
-                  )}
-                </span>
-              ))
-            )}
-          </div>
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="font-bold text-xs text-foreground/90 tracking-tight flex items-center gap-1.5">
+            <Gamepad2 className="h-4 w-4 text-primary" />
+            작혼 플레이
+          </span>
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0">

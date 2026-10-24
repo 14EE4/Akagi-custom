@@ -2033,7 +2033,7 @@ pub async fn test_auto_queue_step(
                 .map_err(|e| format!("화면 상태 감지 실패: {e:#}"))?;
             if in_game {
                 screen = crate::autoplay::cdp_input::MajsoulScreenState::InGame;
-            } else if crate::bridge::majsoul::is_settling() || crate::bridge::majsoul::last_game_end_ms() > 0 {
+            } else if crate::bridge::majsoul::is_settling() {
                 screen = crate::autoplay::cdp_input::MajsoulScreenState::GameEnd;
             }
             let diag = crate::autoplay::cdp_input::probe_majsoul_diagnostics(page).await.unwrap_or_default();

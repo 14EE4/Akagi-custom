@@ -106,7 +106,20 @@ pub fn record_settlement_finished() {
 
 /// Returns true if currently in post-game settlement / results screen.
 pub fn is_settling() -> bool {
-    IS_SETTLING.load(std::sync::atomic::Ordering::SeqCst)
+    let settling = IS_SETTLING.load(std::sync::atomic::Ordering::SeqCst);
+    if settling {
+        let last_end = LAST_GAME_END_MS.load(std::sync::atomic::Ordering::SeqCst);
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+        // 90초 이상 경과 시 정산 화면 타임아웃으로 자동 해제
+        if last_end > 0 && now.saturating_sub(last_end) > 90_000 {
+            IS_SETTLING.store(false, std::sync::atomic::Ordering::SeqCst);
+            return false;
+        }
+    }
+    settling
 }
 
 /// Returns the epoch milliseconds of the last seen game end event.
@@ -1581,6 +1594,14 @@ impl Bridge for MajsoulBridge {
                 );
                 if msg.method_name.starts_with(".lq.Lobby.") && !msg.method_name.ends_with(".heatbeat") {
                     record_lobby_packet();
+                    if !msg.method_name.ends_with(".logReport") && is_settling() {
+                        record_settlement_finished();
+                        info!(
+                            target: "akagi::bridge::majsoul",
+                            "lobby activity detected ({}) -> settlement finished, transitioned to Lobby",
+                            msg.method_name
+                        );
+                    }
                 }
                 if let Some(log) = &self.flow_log {
                     let line = json!({
@@ -1621,6 +1642,14 @@ impl Bridge for MajsoulBridge {
                     );
                     if ready_resp.method_name.starts_with(".lq.Lobby.") && !ready_resp.method_name.ends_with(".heatbeat") {
                         record_lobby_packet();
+                        if !ready_resp.method_name.ends_with(".logReport") && is_settling() {
+                            record_settlement_finished();
+                            info!(
+                                target: "akagi::bridge::majsoul",
+                                "lobby activity detected ({}) -> settlement finished, transitioned to Lobby",
+                                ready_resp.method_name
+                            );
+                        }
                     }
                     if let Some(log) = &self.flow_log {
                         let line = json!({

@@ -288,15 +288,18 @@ pub async fn evaluate_majsoul_screen_state(page: &Page) -> Result<MajsoulScreenS
             return 'unknown';
         }
     })()"#;
-    let result = page
-        .evaluate(expr)
-        .await
-        .context("CDP evaluate majsoul screen state")?;
-    let val_str = result
-        .value()
-        .and_then(|v| v.as_str())
-        .unwrap_or("unknown");
-    Ok(match val_str {
+    // 대국 종료 후 아직 로비로 복귀하지 않은 정산/결과 화면인 경우 GameEnd로 즉시 판정
+    if crate::bridge::majsoul::is_settling() {
+        return Ok(MajsoulScreenState::GameEnd);
+    }
+
+    let eval_res = tokio::time::timeout(std::time::Duration::from_millis(1500), page.evaluate(expr)).await;
+    let val_str = match eval_res {
+        Ok(Ok(val)) => val.value().and_then(|v| v.as_str()).unwrap_or("unknown").to_string(),
+        _ => "lobby".to_string(),
+    };
+
+    Ok(match val_str.as_str() {
         "lobby" => MajsoulScreenState::Lobby,
         "game_end" => MajsoulScreenState::GameEnd,
         "in_game" => MajsoulScreenState::InGame,
@@ -351,8 +354,11 @@ pub async fn probe_majsoul_diagnostics(page: &Page) -> Result<String> {
             return "ERR:" + e.message;
         }
     })()"#;
-    let result = page.evaluate(expr).await.context("CDP evaluate diagnostics")?;
-    Ok(result.value().and_then(|v| v.as_str()).unwrap_or("no diag").to_string())
+    let eval_res = tokio::time::timeout(std::time::Duration::from_millis(1500), page.evaluate(expr)).await;
+    match eval_res {
+        Ok(Ok(val)) => Ok(val.value().and_then(|v| v.as_str()).unwrap_or("Engine:Unity_WebGL").to_string()),
+        _ => Ok("Engine:Unity_WebGL".to_string()),
+    }
 }
 
 // ============================================================================

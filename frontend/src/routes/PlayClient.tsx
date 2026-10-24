@@ -54,7 +54,7 @@ export function PlayClient() {
     min_delay_sec: 8,
     max_delay_sec: 15,
     initial_delay_ms: 25000,
-    confirm_clicks: 2,
+    confirm_clicks: 3,
     confirm_delay_ms: 5000,
     confirm_x: 13.9,
     confirm_y: 8.2,
@@ -79,7 +79,7 @@ export function PlayClient() {
       min_delay_sec: currentAq?.min_delay_sec ?? 8,
       max_delay_sec: currentAq?.max_delay_sec ?? 15,
       initial_delay_ms: currentAq?.initial_delay_ms ?? 25000,
-      confirm_clicks: currentAq?.confirm_clicks ?? 2,
+      confirm_clicks: currentAq?.confirm_clicks ?? 3,
       confirm_delay_ms: currentAq?.confirm_delay_ms ?? 5000,
       confirm_x: currentAq?.confirm_x ?? 13.9,
       confirm_y: currentAq?.confirm_y ?? 8.2,
@@ -101,7 +101,7 @@ export function PlayClient() {
       min_delay_sec: currentAq?.min_delay_sec ?? 8,
       max_delay_sec: currentAq?.max_delay_sec ?? 15,
       initial_delay_ms: currentAq?.initial_delay_ms ?? 25000,
-      confirm_clicks: currentAq?.confirm_clicks ?? 2,
+      confirm_clicks: currentAq?.confirm_clicks ?? 3,
       confirm_delay_ms: currentAq?.confirm_delay_ms ?? 5000,
       confirm_x: currentAq?.confirm_x ?? 13.9,
       confirm_y: currentAq?.confirm_y ?? 8.2,
@@ -727,7 +727,7 @@ export function PlayClient() {
                         className="h-5 text-[10px] px-2 py-0 flex-1 font-semibold"
                         onClick={() => setAqDraft({ ...aqDraft, confirm_clicks: 2 })}
                       >
-                        일반 작사 (2회)
+                        빠른 스킵 (2회)
                       </Button>
                       <Button
                         size="sm"
@@ -735,7 +735,7 @@ export function PlayClient() {
                         className="h-5 text-[10px] px-2 py-0 flex-1 font-semibold"
                         onClick={() => setAqDraft({ ...aqDraft, confirm_clicks: 3 })}
                       >
-                        계약 작사 (3회)
+                        기본 권장 (3회)
                       </Button>
                       <Input
                         type="number"

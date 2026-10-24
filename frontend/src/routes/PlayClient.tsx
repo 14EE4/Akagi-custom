@@ -19,6 +19,7 @@ import {
   Settings2,
   X,
 } from 'lucide-react'
+import { BotShowList } from '@/components/BotShowList'
 import { ServerSelector } from '@/components/ServerSelector'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -1402,7 +1403,32 @@ export function PlayClient() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-3 space-y-3 text-xs">
-              {/* 1. Auto Queue Status Card */}
+              {/* 1. AI Top 3 Suggestions Overlay Card */}
+              <div className="p-3 rounded-lg border border-border/70 bg-background/50 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-xs text-foreground">AI 추천 타패 (Top 3)</span>
+                    {latestShow?.title && (
+                      <span className="text-[10px] text-muted-foreground truncate max-w-[110px]">
+                        {latestShow.title}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+                    {topSuggestions.length > 0 ? `${topSuggestions.length}개 후보` : '대기 중'}
+                  </span>
+                </div>
+
+                {topSuggestions.length === 0 ? (
+                  <div className="py-3 text-center text-muted-foreground/70 text-[11px]">
+                    대국 진행 시 AI 추천 타패가 여기에 실시간 표시됩니다
+                  </div>
+                ) : (
+                  <BotShowList items={topSuggestions} variant="tile" className="gap-1.5" />
+                )}
+              </div>
+
+              {/* 2. Auto Queue Status Card */}
               <div className="p-3 rounded-lg border border-border/70 bg-background/50 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <div className="flex flex-col">

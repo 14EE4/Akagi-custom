@@ -80,6 +80,7 @@ export type ChromiumConfig = {
   force_cft: boolean
   extra_args: string[]
   block_telemetry: boolean
+  auto_launch?: boolean
 }
 
 export type CaptureConfig = {

@@ -101,6 +101,7 @@ pub async fn auto_queue_watcher(
         match rx.recv().await {
             Ok(ev) => match ev {
                 MjaiEvent::StartGame { .. } | MjaiEvent::StartKyoku { .. } => {
+                    crate::bridge::majsoul::record_game_start();
                     let mut st = status.write().await;
                     if st.state != "in_game" {
                         st.state = "in_game".into();
@@ -110,10 +111,6 @@ pub async fn auto_queue_watcher(
                 }
                 MjaiEvent::EndGame { .. } => {
                     crate::bridge::majsoul::record_game_end();
-                    let game_end_time_ms = std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_millis() as u64;
 
                     let aq = {
                         let guard = cfg.read().await;
@@ -190,36 +187,32 @@ pub async fn auto_queue_watcher(
                     // Strategy 1: "lobby" (Exit to lobby, then click rank match)
                     // -------------------------------------------------------------
                     if aq.strategy != "rematch" {
-                        let max_confirms = aq.lobby_confirm_max.max(aq.confirm_clicks).clamp(3, 15);
                         let confirm_delay =
                             Duration::from_millis(aq.lobby_confirm_delay_ms.max(500) as u64);
 
                         let mut aborted = false;
-                        let mut is_in_lobby = false;
 
-                        // 정산 화면을 넘기기 위한 최소 필수 확인 횟수 (기본 2~3회는 무조건 클릭 보장)
-                        let min_confirms = aq.confirm_clicks.clamp(2, 5);
+                        // 정산 화면을 넘기기 위한 확인 클릭 루프
+                        let required_confirms = aq.confirm_clicks.clamp(1, 10);
 
-                        // 메인 화면(로비)에 도달할 때까지 확인 버튼을 반복 클릭 (최대 max_confirms회)
-                        for click_idx in 1..=max_confirms {
+                        for click_idx in 1..=required_confirms {
                             if !cfg.read().await.autoplay.auto_queue.enabled {
                                 aborted = true;
                                 break;
                             }
 
-                            // 최소 필수 클릭(min_confirms)을 완료한 이후에만 로비 패킷으로 탈출 허용 (0회/1회 조기 탈출 방지)
-                            if click_idx > min_confirms && crate::bridge::majsoul::last_lobby_packet_ms() >= game_end_time_ms {
-                                is_in_lobby = true;
+                            // 로비 패킷 수신으로 이미 메인 로비에 복귀한 것이 감지되면 즉시 확인 클릭 중단
+                            if !crate::bridge::majsoul::is_settling() {
                                 info!(
-                                    "auto_queue: 로비(메인화면) 진입 확인 완료! ({}회 클릭 후 감지)",
-                                    click_idx - 1
+                                    "auto_queue: 메인 로비 복귀 감지됨 (is_settling=false) -> 확인 클릭({}회 완료 후) 조기 종료",
+                                    click_idx.saturating_sub(1)
                                 );
                                 break;
                             }
 
-                            let label = format!("확인/로비탈출 ({click_idx}/{max_confirms})");
+                            let label = format!("확인/로비탈출 ({click_idx}/{required_confirms})");
                             info!(
-                                "auto_queue: clicking confirm ({click_idx}/{max_confirms}) at ({:.2}, {:.2})",
+                                "auto_queue: clicking confirm ({click_idx}/{required_confirms}) at ({:.2}, {:.2})",
                                 aq.confirm_x, aq.confirm_y
                             );
                             if let Err(e) = execute_click_with_indicator(
@@ -236,10 +229,10 @@ pub async fn auto_queue_watcher(
 
                             tokio::time::sleep(confirm_delay).await;
 
-                            if click_idx >= min_confirms && crate::bridge::majsoul::last_lobby_packet_ms() >= game_end_time_ms {
-                                is_in_lobby = true;
+                            // 클릭 후 로비 복귀 확인
+                            if !crate::bridge::majsoul::is_settling() {
                                 info!(
-                                    "auto_queue: 로비(메인화면) 진입 확인 완료! ({click_idx}회 클릭 후 감지)"
+                                    "auto_queue: 메인 로비 복귀 감지됨 (is_settling=false) -> 확인 클릭({click_idx}회 완료 후) 조기 종료"
                                 );
                                 break;
                             }
@@ -250,11 +243,9 @@ pub async fn auto_queue_watcher(
                             continue;
                         }
 
-                        if is_in_lobby {
-                            info!("auto_queue: 로비(메인화면) 진입 확인 완료! (네트워크 로비 패킷 감지)");
-                        } else {
-                            warn!("auto_queue: 최대 확인 횟수({max_confirms}회) 도달 후 단위전 매칭 시퀀스로 진행합니다.");
-                        }
+                        // 정산 완료 공식 확정 -> 메인 로비 상태
+                        crate::bridge::majsoul::record_settlement_finished();
+                        info!("auto_queue: 정산 화면 확인 클릭 완료 -> 메인 로비 상태로 전환");
 
                         // 로비 최종 도달 안정화 대기
                         tokio::time::sleep(Duration::from_millis(1500)).await;

@@ -15,9 +15,11 @@ import {
   Square,
   RefreshCw,
   RotateCcw,
+  Scan,
   Settings2,
   X,
 } from 'lucide-react'
+import { BotShowList } from '@/components/BotShowList'
 import { ServerSelector } from '@/components/ServerSelector'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -57,6 +59,27 @@ export function PlayClient() {
   const [hudSide, setHudSide] = useState<'left' | 'right'>('right')
   const [isSimulating, setIsSimulating] = useState(false)
   const [debugLogs, setDebugLogs] = useState<string[]>([])
+  const [isCheckingScreen, setIsCheckingScreen] = useState(false)
+  const [screenCheckResult, setScreenCheckResult] = useState<string | null>(null)
+
+  const checkScreenState = async () => {
+    if (!HAS_TAURI) return
+    setIsCheckingScreen(true)
+    try {
+      const res = await invoke<string>('test_auto_queue_step', { step: 'check_screen' })
+      appendDebugLog(`[화면감지] ${res}`)
+      const desc = res.split('[')[0]?.replace('현재 작혼 화면 상태:', '').trim() || res
+      setScreenCheckResult(desc)
+      toast.success(desc)
+    } catch (e: any) {
+      const msg = e?.message || String(e)
+      appendDebugLog(`[화면감지] 실패: ${msg}`)
+      setScreenCheckResult(`감지 실패: ${msg}`)
+      toast.error(`화면 감지 실패: ${msg}`)
+    } finally {
+      setIsCheckingScreen(false)
+    }
+  }
   const [aqDraft, setAqDraft] = useState({
     max_matches: 0,
     min_delay_sec: 8,
@@ -458,40 +481,11 @@ export function PlayClient() {
     <div className="flex flex-col w-full h-full min-h-0 overflow-hidden bg-background">
       {/* Top compact control & AI recommendation bar */}
       <header className="h-11 shrink-0 px-3 border-b border-border bg-card/80 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0 overflow-hidden">
-          <div className="flex items-center gap-2 min-w-0 overflow-x-auto no-scrollbar text-xs">
-            <span className="text-muted-foreground whitespace-nowrap">AI 추천:</span>
-            {topSuggestions.length === 0 ? (
-              <span className="text-muted-foreground/70 whitespace-nowrap">대국 대기 중</span>
-            ) : (
-              topSuggestions.map((item, idx) => (
-                <span
-                  key={idx}
-                  className={
-                    idx === 0
-                      ? 'inline-flex items-center gap-1.5 rounded px-2 py-0.5 font-semibold bg-primary/15 text-primary border border-primary/30 whitespace-nowrap shadow-xs'
-                      : 'inline-flex items-center gap-1 rounded px-1.5 py-0.5 bg-muted text-muted-foreground border border-border/40 whitespace-nowrap'
-                  }
-                >
-                  <span className={idx === 0 ? 'text-primary font-bold' : ''}>
-                    {item.pais?.join(' ') || item.tiles || '—'}
-                  </span>
-                  {item.label && <span className="opacity-75 text-[10px]">({item.label})</span>}
-                  {item.value && (
-                    <span
-                      className={
-                        idx === 0
-                          ? 'font-mono text-[11px] font-bold px-1 rounded bg-primary/20 text-primary'
-                          : 'font-mono text-[10px] font-medium text-foreground/80'
-                      }
-                    >
-                      {item.value}
-                    </span>
-                  )}
-                </span>
-              ))
-            )}
-          </div>
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="font-bold text-xs text-foreground/90 tracking-tight flex items-center gap-1.5">
+            <Gamepad2 className="h-4 w-4 text-primary" />
+            작혼 플레이
+          </span>
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0">
@@ -504,59 +498,6 @@ export function PlayClient() {
               checked={autoplayEnabled}
               onCheckedChange={(v) => void toggleAutoplay(v)}
             />
-          </div>
-
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted/50 border border-border/60">
-            <Label htmlFor="play-autoqueue-toggle" className="text-xs cursor-pointer whitespace-nowrap flex items-center gap-1">
-              <span>자동 다음 대국</span>
-              {autoQueueStatus.enabled && (
-                <span
-                  className={`text-[10px] font-semibold px-1 py-0.5 rounded cursor-pointer transition-colors ${
-                    autoQueueStatus.state === 'waiting'
-                      ? 'bg-amber-500/20 text-amber-500 border border-amber-500/40 animate-pulse'
-                      : autoQueueStatus.state === 'queuing'
-                      ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/40'
-                      : 'bg-primary/20 text-primary border border-primary/30'
-                  }`}
-                  onClick={(e) => {
-                    e.preventDefault()
-                    openAutoQueueDialog()
-                  }}
-                  title="클릭하여 연속 대국 설정 변경"
-                >
-                  {autoQueueStatus.state === 'waiting'
-                    ? `대기 중 (${autoQueueStatus.wait_seconds_left ?? 0}s)`
-                    : autoQueueStatus.state === 'queuing'
-                    ? '매칭 중...'
-                    : autoQueueStatus.max_matches > 0
-                    ? `${autoQueueStatus.current_matches}/${autoQueueStatus.max_matches}판`
-                    : autoQueueStatus.current_matches > 0
-                    ? `${autoQueueStatus.current_matches}판 완료`
-                    : 'ON'}
-                </span>
-              )}
-            </Label>
-            <Switch
-              id="play-autoqueue-toggle"
-              checked={autoQueueStatus.enabled}
-              onCheckedChange={(v) => void toggleAutoQueue(v)}
-            />
-            <button
-              type="button"
-              className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded"
-              onClick={openAutoQueueDialog}
-              title="자동 연속 대국 설정 (최대 대국 수, 대기 시간)"
-            >
-              <Settings2 className="h-3 w-3" />
-            </button>
-            <button
-              type="button"
-              className="text-muted-foreground hover:text-primary transition-colors p-0.5 rounded"
-              onClick={openAutoQueueDebugModal}
-              title="클릭 위치/시간 실시간 디버그 & 테스트"
-            >
-              <Crosshair className="h-3.5 w-3.5" />
-            </button>
           </div>
 
           <ServerSelector variant="header" disabled={busy} />
@@ -633,19 +574,22 @@ export function PlayClient() {
           <Button
             variant={sidebarOpen ? "secondary" : "outline"}
             size="sm"
-            className="h-7 text-xs px-2 gap-1 font-medium ml-1"
+            className="h-7 text-xs px-2.5 gap-1.5 font-medium ml-1"
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            title={sidebarOpen ? "우측 사이드바 닫기" : "우측 사이드바 열기 (자동 큐 / 실시간 로그)"}
+            title={sidebarOpen ? "우측 사이드바 닫기" : "우측 사이드바 열기 (자동 대국 & 로그)"}
           >
             {sidebarOpen ? (
               <>
                 <PanelRightClose className="h-3.5 w-3.5 text-primary" />
-                <span className="hidden sm:inline">사이드바</span>
+                <span className="hidden sm:inline">자동 대국</span>
               </>
             ) : (
               <>
                 <PanelRightOpen className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="hidden sm:inline">사이드바</span>
+                <span className="hidden sm:inline">자동 대국</span>
+                {autoQueueStatus.enabled && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                )}
               </>
             )}
           </Button>
@@ -1451,21 +1395,62 @@ export function PlayClient() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-3 space-y-3 text-xs">
-              {/* 1. Auto Queue Status Card */}
+              {/* 1. AI Top 3 Suggestions Overlay Card */}
               <div className="p-3 rounded-lg border border-border/70 bg-background/50 space-y-2">
                 <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-xs text-foreground">AI 추천 타패 (Top 3)</span>
+                    {latestShow?.title && (
+                      <span className="text-[10px] text-muted-foreground truncate max-w-[110px]">
+                        {latestShow.title}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+                    {topSuggestions.length > 0 ? `${topSuggestions.length}개 후보` : '대기 중'}
+                  </span>
+                </div>
+
+                {topSuggestions.length === 0 ? (
+                  <div className="py-3 text-center text-muted-foreground/70 text-[11px]">
+                    대국 진행 시 AI 추천 타패가 여기에 실시간 표시됩니다
+                  </div>
+                ) : (
+                  <BotShowList items={topSuggestions} variant="tile" className="gap-1.5" />
+                )}
+              </div>
+
+              {/* 2. Auto Queue Status Card */}
+              <div className="p-3 rounded-lg border border-border/70 bg-background/50 space-y-2.5">
+                <div className="flex items-center justify-between">
                   <div className="flex flex-col">
-                    <span className="font-semibold text-xs text-foreground">자동 매칭 (Auto Queue)</span>
+                    <span className="font-semibold text-xs text-foreground">자동 다음 대국</span>
                     <span className="text-[10px] text-muted-foreground">
                       {autoQueueStatus.max_matches > 0
                         ? `진행: ${autoQueueStatus.current_matches} / ${autoQueueStatus.max_matches} 판`
                         : `진행: ${autoQueueStatus.current_matches} 판 완료`}
                     </span>
                   </div>
-                  <Switch
-                    checked={autoQueueStatus.enabled}
-                    onCheckedChange={(checked) => void toggleAutoQueue(checked)}
-                  />
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => openAutoQueueDialog()}
+                      className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+                      title="자동 연속 대국 설정 (판수, 대기시간)"
+                    >
+                      <Settings2 className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => openAutoQueueDebugModal()}
+                      className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-muted/60 transition-colors"
+                      title="클릭 좌표 및 디버그 모달"
+                    >
+                      <Crosshair className="h-3.5 w-3.5" />
+                    </button>
+                    <Switch
+                      checked={autoQueueStatus.enabled}
+                      onCheckedChange={(checked) => void toggleAutoQueue(checked)}
+                    />
+                  </div>
                 </div>
 
                 {autoQueueStatus.enabled && (
@@ -1497,61 +1482,50 @@ export function PlayClient() {
                     </div>
                   </div>
                 )}
-              </div>
 
-              {/* 2. Quick Action Buttons */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground px-0.5">
-                  <span>빠른 조작</span>
-                  <button
-                    onClick={() => openAutoQueueDialog()}
-                    className="text-[10px] text-primary hover:underline flex items-center gap-0.5"
-                  >
-                    <Settings2 className="h-3 w-3" />
-                    설정
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 gap-1.5">
+                {/* 화면 상태 감지 버튼 & 결과 표시 */}
+                <div className="pt-1 border-t border-border/40 space-y-1.5">
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-7 text-[11px] px-2 font-medium bg-card hover:bg-primary/10 border-border"
-                    onClick={() => void testSingleClick(aqDraft.confirm_x, aqDraft.confirm_y, '확인')}
-                    title="우하단 확인/정산 탈출 클릭"
+                    disabled={isCheckingScreen}
+                    className="w-full h-7 text-[11px] font-medium text-emerald-400 hover:text-emerald-300 border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                    onClick={() => void checkScreenState()}
+                    title="현재 작혼 화면 상태(로비 / 정산 / 대국 중) 감지 및 로그 기록"
                   >
-                    확인 1회 클릭
+                    {isCheckingScreen ? (
+                      <>
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                        화면 상태 분석 중...
+                      </>
+                    ) : (
+                      <>
+                        <Scan className="h-3.5 w-3.5" />
+                        현재 화면 상태 감지
+                      </>
+                    )}
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-[11px] px-2 font-medium text-emerald-400 hover:text-emerald-300 border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10"
-                    onClick={() => void testStep('check_screen')}
-                    title="현재 화면 상태 감지"
-                  >
-                    화면상태 검사
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-[11px] px-2 font-medium bg-card hover:bg-primary/10 border-border"
-                    onClick={() => void testSingleClick(aqDraft.rank_match_x, aqDraft.rank_match_y, '단위전')}
-                    title="단위전 클릭"
-                  >
-                    1.단위전
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-[11px] px-2 font-medium bg-card hover:bg-primary/10 border-border"
-                    onClick={() => void testSingleClick(aqDraft.round_type_x, aqDraft.round_type_y, '3.4인반장')}
-                    title="은탁 4인 반장전 클릭"
-                  >
-                    2.은탁 4인반장
-                  </Button>
+
+                  {screenCheckResult && (
+                    <div className="p-2 rounded bg-muted/70 border border-border/60 text-center animate-in fade-in zoom-in-95 duration-150">
+                      <span className="text-[10px] text-muted-foreground block mb-0.5">최근 화면 감지 결과</span>
+                      <span className={`text-[11px] font-bold block ${
+                        screenCheckResult.includes('로비')
+                          ? 'text-sky-400'
+                          : screenCheckResult.includes('정산') || screenCheckResult.includes('결과')
+                          ? 'text-amber-400'
+                          : screenCheckResult.includes('대국')
+                          ? 'text-emerald-400'
+                          : 'text-rose-400'
+                      }`}>
+                        {screenCheckResult}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* 3. Realtime Logs & Notifications Feed */}
+              {/* 2. Realtime Logs & Notifications Feed */}
               <div className="space-y-1.5 pt-1 flex flex-col flex-1 min-h-[200px]">
                 <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground px-0.5">
                   <span>실시간 알림 & 로그</span>

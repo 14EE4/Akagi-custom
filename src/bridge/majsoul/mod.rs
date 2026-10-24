@@ -65,6 +65,7 @@ const CHI_PENG_GANG_GANG: u64 = 2;
 
 static LAST_LOBBY_PACKET_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 static LAST_GAME_END_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static IS_SETTLING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// Records the timestamp of a received/sent Majsoul Lobby message (.lq.Lobby.*).
 pub fn record_lobby_packet() {
@@ -80,6 +81,12 @@ pub fn last_lobby_packet_ms() -> u64 {
     LAST_LOBBY_PACKET_MS.load(std::sync::atomic::Ordering::SeqCst)
 }
 
+/// Records that a new game has started, clearing settlement and game-end states.
+pub fn record_game_start() {
+    LAST_GAME_END_MS.store(0, std::sync::atomic::Ordering::SeqCst);
+    IS_SETTLING.store(false, std::sync::atomic::Ordering::SeqCst);
+}
+
 /// Records the timestamp when a game officially ends (MjaiEvent::EndGame).
 pub fn record_game_end() {
     let now = std::time::SystemTime::now()
@@ -87,6 +94,32 @@ pub fn record_game_end() {
         .unwrap_or_default()
         .as_millis() as u64;
     LAST_GAME_END_MS.store(now, std::sync::atomic::Ordering::SeqCst);
+    IS_SETTLING.store(true, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// Marks that post-game settlement and confirmation clicks have finished,
+/// officially transitioning back to the main lobby.
+pub fn record_settlement_finished() {
+    LAST_GAME_END_MS.store(0, std::sync::atomic::Ordering::SeqCst);
+    IS_SETTLING.store(false, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// Returns true if currently in post-game settlement / results screen.
+pub fn is_settling() -> bool {
+    let settling = IS_SETTLING.load(std::sync::atomic::Ordering::SeqCst);
+    if settling {
+        let last_end = LAST_GAME_END_MS.load(std::sync::atomic::Ordering::SeqCst);
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+        // 90초 이상 경과 시 정산 화면 타임아웃으로 자동 해제
+        if last_end > 0 && now.saturating_sub(last_end) > 90_000 {
+            IS_SETTLING.store(false, std::sync::atomic::Ordering::SeqCst);
+            return false;
+        }
+    }
+    settling
 }
 
 /// Returns the epoch milliseconds of the last seen game end event.
@@ -332,6 +365,7 @@ impl MajsoulBridge {
                     target: "akagi::bridge::majsoul",
                     "game ended: {}", msg.payload
                 );
+                record_game_end();
                 self.store_budget(None);
                 let (final_scores, final_ranks) =
                     parse_game_end_standings(&msg.payload, self.num_players)
@@ -344,6 +378,7 @@ impl MajsoulBridge {
                     target: "akagi::bridge::majsoul",
                     "game terminated: {}", msg.payload
                 );
+                record_game_end();
                 self.store_budget(None);
                 vec![MjaiEvent::terminated_game()]
             }
@@ -1259,6 +1294,7 @@ impl MajsoulBridge {
         };
         let seat = seat as Actor;
         self.seat = Some(seat);
+        record_game_start();
         // 3p tables produce length-3 seat_list; 4p length-4. Anything else
         // would be a protocol surprise — clamp into [3, 4] but log loudly.
         let detected = seat_list.len() as u8;
@@ -1558,6 +1594,27 @@ impl Bridge for MajsoulBridge {
                 );
                 if msg.method_name.starts_with(".lq.Lobby.") && !msg.method_name.ends_with(".heatbeat") {
                     record_lobby_packet();
+                    info!(
+                        target: "akagi::bridge::majsoul",
+                        "[LOBBY_PACKET] {direction:?} {kind} {} (is_settling={})",
+                        msg.method_name,
+                        is_settling()
+                    );
+                    // 메인 로비 진입을 나타내는 결정적 패킷: loginBeat, fetchAccountActivityData, leaveRoom, startUnifiedMatch
+                    // (정산 중 주기적으로 오가는 fetchAccountInfo, fetchRoom, logReport 등은 제외)
+                    let is_main_lobby_entry = msg.method_name.ends_with(".loginBeat")
+                        || msg.method_name.ends_with(".fetchAccountActivityData")
+                        || msg.method_name.ends_with(".leaveRoom")
+                        || msg.method_name.ends_with(".startUnifiedMatch");
+
+                    if is_main_lobby_entry && is_settling() {
+                        record_settlement_finished();
+                        info!(
+                            target: "akagi::bridge::majsoul",
+                            "[LOBBY_PACKET] ★★★ 메인 화면(로비) 진입 패킷 감지: {} -> 정산 완료(Lobby 전환) ★★★",
+                            msg.method_name
+                        );
+                    }
                 }
                 if let Some(log) = &self.flow_log {
                     let line = json!({
@@ -1598,6 +1655,25 @@ impl Bridge for MajsoulBridge {
                     );
                     if ready_resp.method_name.starts_with(".lq.Lobby.") && !ready_resp.method_name.ends_with(".heatbeat") {
                         record_lobby_packet();
+                        info!(
+                            target: "akagi::bridge::majsoul",
+                            "[LOBBY_PACKET] down RESPONSE {} (is_settling={})",
+                            ready_resp.method_name,
+                            is_settling()
+                        );
+                        let is_main_lobby_entry = ready_resp.method_name.ends_with(".loginBeat")
+                            || ready_resp.method_name.ends_with(".fetchAccountActivityData")
+                            || ready_resp.method_name.ends_with(".leaveRoom")
+                            || ready_resp.method_name.ends_with(".startUnifiedMatch");
+
+                        if is_main_lobby_entry && is_settling() {
+                            record_settlement_finished();
+                            info!(
+                                target: "akagi::bridge::majsoul",
+                                "[LOBBY_PACKET] ★★★ 메인 화면(로비) 진입 응답 감지: {} -> 정산 완료(Lobby 전환) ★★★",
+                                ready_resp.method_name
+                            );
+                        }
                     }
                     if let Some(log) = &self.flow_log {
                         let line = json!({

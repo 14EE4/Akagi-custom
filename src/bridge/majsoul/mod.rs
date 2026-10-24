@@ -63,6 +63,22 @@ const CHI_PENG_GANG_CHI: u64 = 0;
 const CHI_PENG_GANG_PENG: u64 = 1;
 const CHI_PENG_GANG_GANG: u64 = 2;
 
+static LAST_LOBBY_PACKET_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Records the timestamp of a received/sent Majsoul Lobby message (.lq.Lobby.*).
+pub fn record_lobby_packet() {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    LAST_LOBBY_PACKET_MS.store(now, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// Returns the epoch milliseconds of the last seen Majsoul Lobby message.
+pub fn last_lobby_packet_ms() -> u64 {
+    LAST_LOBBY_PACKET_MS.load(std::sync::atomic::Ordering::SeqCst)
+}
+
 // AnGangAddGang.type
 const AN_GANG_ADD_GANG_AN: u64 = 3;
 const AN_GANG_ADD_GANG_ADD: u64 = 2;
@@ -1525,6 +1541,9 @@ impl Bridge for MajsoulBridge {
                     msg.method_name,
                     msg.payload
                 );
+                if msg.method_name.starts_with(".lq.Lobby.") {
+                    record_lobby_packet();
+                }
                 if let Some(log) = &self.flow_log {
                     let line = json!({
                         "ts": Local::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
@@ -1562,6 +1581,9 @@ impl Bridge for MajsoulBridge {
                         ready_resp.method_name,
                         ready_resp.payload
                     );
+                    if ready_resp.method_name.starts_with(".lq.Lobby.") {
+                        record_lobby_packet();
+                    }
                     if let Some(log) = &self.flow_log {
                         let line = json!({
                             "ts": Local::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),

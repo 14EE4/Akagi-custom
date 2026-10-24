@@ -1,4 +1,4 @@
-# Akagi Custom (`custom` 브랜치)
+# Akagi Custom
 
 공식 Akagi v3 레포지토리 기반의 개인 커스텀 빌드 및 패치 저장소입니다.
 
@@ -66,7 +66,7 @@
 
 ---
 
-## 2. 노트북 동기화 방법 (`custom` 브랜치)
+## 2. 노트북 동기화 방법 (main 브랜치)
 
 빌드 완료된 `akagi.exe`와 `mjai_bot/mortal` 스크립트(Windows용 `libriichi` `.pyd` 포함)가 레포지토리에 포함되어 있으므로, 노트북에서는 별도 빌드 없이 `git pull`만으로 동기화할 수 있습니다 (`mortal.pth` 가중치 파일만 `mjai_bot/mortal/mortal.pth`에 위치하면 됩니다).
 
@@ -79,9 +79,9 @@ git remote add origin https://github.com/14EE4/Akagi-custom.git
 # 이미 .git이 있는 폴더인 경우:
 git remote set-url origin https://github.com/14EE4/Akagi-custom.git
 
-# custom 브랜치 받아오기 (mortal.pth, configs/, chrome-profile/ 등은 유지됨):
+# main 브랜치 받아오기 (mortal.pth, configs/, chrome-profile/ 등은 유지됨):
 git fetch origin
-git checkout -f -B custom origin/custom
+git checkout -f -B main origin/main
 ```
 
 ### 최초 1회: Python 런타임(`runtime/`) 준비
@@ -112,7 +112,7 @@ git pull
 > **주의**: 앱 내 UI의 자동 업데이트 버튼을 누르면 공식 순정 `akagi.exe`가 덮어씌워져 커스텀 패치가 사라집니다. 업데이트는 반드시 아래 Git 병합 및 로컬 빌드로 진행하세요.
 
 ```powershell
-git checkout custom
+git checkout main
 git pull upstream v3
 npm --prefix frontend run build
 $env:PROTOC = "C:\Users\pyeon\.gemini\antigravity-cli\brain\e09dcb65-b75c-45dc-9ccd-1b8d0157081b\scratch\protoc\bin\protoc.exe"
@@ -121,5 +121,5 @@ cargo build --release --features custom-protocol
 Copy-Item -Path "target\release\akagi.exe" -Destination "akagi.exe" -Force
 git add -A
 git commit -m "chore: merge upstream/v3 and rebuild akagi.exe"
-git push origin custom
+git push origin main
 ```

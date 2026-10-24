@@ -248,7 +248,7 @@ pub struct AutoQueueConfig {
 
     /// Initial delay in ms after game end before the first confirm click. Default: 25000 (25s)
     pub initial_delay_ms: u32,
-    /// Number of confirm ("확인") clicks to advance through settlement screens (2 for normal characters, 3 for bonded/contracted). Default: 2
+    /// Number of confirm ("확인") clicks to advance through settlement screens (2 for normal characters, 3 for bonded/contracted). Default: 3
     pub confirm_clicks: u32,
     /// Delay between confirm clicks in ms. Default: 5000 (5s)
     pub confirm_delay_ms: u32,
@@ -272,6 +272,37 @@ pub struct AutoQueueConfig {
     pub modal_yes_y: f64,
     /// Whether to display a visual ripple marker on screen where clicked. Default: true
     pub show_click_indicator: bool,
+
+    /// Strategy for next match: "lobby" (exit to lobby, click rank match -> 4p -> silver -> hanchan) or "rematch" (settlement rematch button). Default: "lobby"
+    pub strategy: String,
+
+    /// Maximum confirm clicks while waiting for lobby screen. Default: 8
+    pub lobby_confirm_max: u32,
+    /// Delay between confirm clicks in ms while in lobby-exit loop. Default: 3500
+    pub lobby_confirm_delay_ms: u32,
+
+    /// Normalized X coordinate of the lobby "단위전" (Rank Match) button. Default: 11.5
+    pub rank_match_x: f64,
+    /// Normalized Y coordinate of the lobby "단위전" (Rank Match) button. Default: 2.8
+    pub rank_match_y: f64,
+
+    /// Normalized X coordinate of the "4인 마작" (4-player) tab (optional). Default: 4.5
+    pub four_player_x: f64,
+    /// Normalized Y coordinate of the "4인 마작" (4-player) tab (optional). Default: 1.4
+    pub four_player_y: f64,
+
+    /// Normalized X coordinate of the room card (e.g. "은탁" Silver). Default: 11.5
+    pub room_card_x: f64,
+    /// Normalized Y coordinate of the room card (e.g. "은탁" Silver). Default: 4.6
+    pub room_card_y: f64,
+
+    /// Normalized X coordinate of the round button (e.g. "4인 반장전" Hanchan). Default: 11.5
+    pub round_type_x: f64,
+    /// Normalized Y coordinate of the round button (e.g. "4인 반장전" Hanchan). Default: 4.6
+    pub round_type_y: f64,
+
+    /// Delay between navigation steps in lobby sequence in ms. Default: 1500
+    pub lobby_step_delay_ms: u32,
 }
 
 impl Default for AutoQueueConfig {
@@ -282,7 +313,7 @@ impl Default for AutoQueueConfig {
             min_delay_sec: 8,
             max_delay_sec: 15,
             initial_delay_ms: 25000,
-            confirm_clicks: 2,
+            confirm_clicks: 3,
             confirm_delay_ms: 5000,
             confirm_x: 13.9,
             confirm_y: 8.2,
@@ -293,6 +324,18 @@ impl Default for AutoQueueConfig {
             modal_yes_x: 6.9,
             modal_yes_y: 6.5,
             show_click_indicator: true,
+            strategy: "lobby".to_string(),
+            lobby_confirm_max: 8,
+            lobby_confirm_delay_ms: 4500,
+            rank_match_x: 11.5,
+            rank_match_y: 2.8,
+            four_player_x: 4.5,
+            four_player_y: 1.4,
+            room_card_x: 11.5,
+            room_card_y: 4.6,
+            round_type_x: 11.5,
+            round_type_y: 4.6,
+            lobby_step_delay_ms: 1500,
         }
     }
 }

@@ -53,7 +53,7 @@
 - **앱 내 자동 업데이트(UI의 업데이트 버튼) 사용 주의**: GitHub Releases의 순정 `akagi.exe`를 내려받아 덮어쓰므로 위 커스텀 패치가 사라집니다.
 - **공식 레포(`upstream/v3`) 최신 사항을 `custom` 브랜치에 병합 및 배포하는 절차 (데스크톱)**:
   ```powershell
-  git checkout custom
+  git checkout main
   git pull upstream v3
   $env:PROTOC = "C:\Users\pyeon\.gemini\antigravity-cli\brain\e09dcb65-b75c-45dc-9ccd-1b8d0157081b\scratch\protoc\bin\protoc.exe"
   Stop-Process -Name "akagi" -Force -ErrorAction SilentlyContinue
@@ -61,7 +61,7 @@
   Copy-Item -Path "target\release\akagi.exe" -Destination "akagi.exe" -Force
   git add -A
   git commit -m "chore: merge upstream/v3 and rebuild akagi.exe"
-  git push origin custom
+  git push origin main
   ```
 - **노트북에서 동기화하는 절차**:
   - `custom` 브랜치에서 `git pull origin custom` (또는 `git pull`)만 실행하면 빌드 없이 최신 `akagi.exe`와 `mortal` 스크립트가 즉시 반영됩니다.

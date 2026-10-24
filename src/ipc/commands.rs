@@ -2033,6 +2033,13 @@ pub async fn test_auto_queue_step(
                 .map_err(|e| format!("화면 상태 감지 실패: {e:#}"))?;
             if in_game {
                 screen = crate::autoplay::cdp_input::MajsoulScreenState::InGame;
+            } else {
+                let last_end = crate::bridge::majsoul::last_game_end_ms();
+                let last_lobby = crate::bridge::majsoul::last_lobby_packet_ms();
+                // 대국이 종료되었으나 아직 로비 복귀 패킷을 받지 못했다면 정산/결과 화면(GameEnd)
+                if last_end > 0 && last_lobby < last_end {
+                    screen = crate::autoplay::cdp_input::MajsoulScreenState::GameEnd;
+                }
             }
             let diag = crate::autoplay::cdp_input::probe_majsoul_diagnostics(page).await.unwrap_or_default();
             let desc = match screen {

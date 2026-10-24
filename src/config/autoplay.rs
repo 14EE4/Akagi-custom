@@ -281,24 +281,24 @@ pub struct AutoQueueConfig {
     /// Delay between confirm clicks in ms while in lobby-exit loop. Default: 3500
     pub lobby_confirm_delay_ms: u32,
 
-    /// Normalized X coordinate of the lobby "단위전" (Rank Match) button. Default: 13.5
+    /// Normalized X coordinate of the lobby "단위전" (Rank Match) button. Default: 11.5
     pub rank_match_x: f64,
     /// Normalized Y coordinate of the lobby "단위전" (Rank Match) button. Default: 2.8
     pub rank_match_y: f64,
 
-    /// Normalized X coordinate of the "4인 마작" (4-player) tab. Default: 4.5
+    /// Normalized X coordinate of the "4인 마작" (4-player) tab (optional). Default: 4.5
     pub four_player_x: f64,
-    /// Normalized Y coordinate of the "4인 마작" (4-player) tab. Default: 1.4
+    /// Normalized Y coordinate of the "4인 마작" (4-player) tab (optional). Default: 1.4
     pub four_player_y: f64,
 
-    /// Normalized X coordinate of the room card (e.g. "은탁" Silver). Default: 5.8
+    /// Normalized X coordinate of the room card (e.g. "은탁" Silver). Default: 11.5
     pub room_card_x: f64,
-    /// Normalized Y coordinate of the room card (e.g. "은탁" Silver). Default: 4.5
+    /// Normalized Y coordinate of the room card (e.g. "은탁" Silver). Default: 4.6
     pub room_card_y: f64,
 
-    /// Normalized X coordinate of the round button (e.g. "반장전" Hanchan). Default: 6.6
+    /// Normalized X coordinate of the round button (e.g. "4인 반장전" Hanchan). Default: 11.5
     pub round_type_x: f64,
-    /// Normalized Y coordinate of the round button (e.g. "반장전" Hanchan). Default: 6.5
+    /// Normalized Y coordinate of the round button (e.g. "4인 반장전" Hanchan). Default: 4.6
     pub round_type_y: f64,
 
     /// Delay between navigation steps in lobby sequence in ms. Default: 1500
@@ -327,14 +327,14 @@ impl Default for AutoQueueConfig {
             strategy: "lobby".to_string(),
             lobby_confirm_max: 8,
             lobby_confirm_delay_ms: 3500,
-            rank_match_x: 13.5,
+            rank_match_x: 11.5,
             rank_match_y: 2.8,
             four_player_x: 4.5,
             four_player_y: 1.4,
-            room_card_x: 5.8,
-            room_card_y: 4.5,
-            round_type_x: 6.6,
-            round_type_y: 6.5,
+            room_card_x: 11.5,
+            room_card_y: 4.6,
+            round_type_x: 11.5,
+            round_type_y: 4.6,
             lobby_step_delay_ms: 1500,
         }
     }

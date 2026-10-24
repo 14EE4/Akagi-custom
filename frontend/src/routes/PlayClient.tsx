@@ -68,14 +68,14 @@ export function PlayClient() {
     strategy: 'lobby' as 'lobby' | 'rematch',
     lobby_confirm_max: 8,
     lobby_confirm_delay_ms: 3500,
-    rank_match_x: 13.5,
+    rank_match_x: 11.5,
     rank_match_y: 2.8,
     four_player_x: 4.5,
     four_player_y: 1.4,
-    room_card_x: 5.8,
-    room_card_y: 4.5,
-    round_type_x: 6.6,
-    round_type_y: 6.5,
+    room_card_x: 11.5,
+    room_card_y: 4.6,
+    round_type_x: 11.5,
+    round_type_y: 4.6,
     lobby_step_delay_ms: 1500,
   })
 
@@ -105,14 +105,14 @@ export function PlayClient() {
       strategy: (currentAq?.strategy ?? 'lobby') as 'lobby' | 'rematch',
       lobby_confirm_max: currentAq?.lobby_confirm_max ?? 8,
       lobby_confirm_delay_ms: currentAq?.lobby_confirm_delay_ms ?? 3500,
-      rank_match_x: currentAq?.rank_match_x ?? 13.5,
+      rank_match_x: currentAq?.rank_match_x ?? 11.5,
       rank_match_y: currentAq?.rank_match_y ?? 2.8,
       four_player_x: currentAq?.four_player_x ?? 4.5,
       four_player_y: currentAq?.four_player_y ?? 1.4,
-      room_card_x: currentAq?.room_card_x ?? 5.8,
-      room_card_y: currentAq?.room_card_y ?? 4.5,
-      round_type_x: currentAq?.round_type_x ?? 6.6,
-      round_type_y: currentAq?.round_type_y ?? 6.5,
+      room_card_x: currentAq?.room_card_x ?? 11.5,
+      room_card_y: currentAq?.room_card_y ?? 4.6,
+      round_type_x: currentAq?.round_type_x ?? 11.5,
+      round_type_y: currentAq?.round_type_y ?? 4.6,
       lobby_step_delay_ms: currentAq?.lobby_step_delay_ms ?? 1500,
     })
     setAutoQueueDialogOpen(true)
@@ -139,14 +139,14 @@ export function PlayClient() {
       strategy: (currentAq?.strategy ?? 'lobby') as 'lobby' | 'rematch',
       lobby_confirm_max: currentAq?.lobby_confirm_max ?? 8,
       lobby_confirm_delay_ms: currentAq?.lobby_confirm_delay_ms ?? 3500,
-      rank_match_x: currentAq?.rank_match_x ?? 13.5,
+      rank_match_x: currentAq?.rank_match_x ?? 11.5,
       rank_match_y: currentAq?.rank_match_y ?? 2.8,
       four_player_x: currentAq?.four_player_x ?? 4.5,
       four_player_y: currentAq?.four_player_y ?? 1.4,
-      room_card_x: currentAq?.room_card_x ?? 5.8,
-      room_card_y: currentAq?.room_card_y ?? 4.5,
-      round_type_x: currentAq?.round_type_x ?? 6.6,
-      round_type_y: currentAq?.round_type_y ?? 6.5,
+      room_card_x: currentAq?.room_card_x ?? 11.5,
+      room_card_y: currentAq?.room_card_y ?? 4.6,
+      round_type_x: currentAq?.round_type_x ?? 11.5,
+      round_type_y: currentAq?.round_type_y ?? 4.6,
       lobby_step_delay_ms: currentAq?.lobby_step_delay_ms ?? 1500,
     })
     setAutoQueueDebugOpen(true)
@@ -643,28 +643,19 @@ export function PlayClient() {
                       size="sm"
                       variant="outline"
                       className="h-6 text-[10px] px-1.5 py-0 border-primary/40 bg-card hover:bg-primary/10"
-                      onClick={() => void testSingleClick(aqDraft.four_player_x, aqDraft.four_player_y, '4인마작')}
-                      title="2. 4인 마작 탭 클릭"
-                    >
-                      2.4마
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-6 text-[10px] px-1.5 py-0 border-primary/40 bg-card hover:bg-primary/10"
                       onClick={() => void testSingleClick(aqDraft.room_card_x, aqDraft.room_card_y, '은탁')}
-                      title="3. 은탁 카드 클릭"
+                      title="2. 은탁 카드 클릭 (11.5, 4.6)"
                     >
-                      3.은탁
+                      2.은탁
                     </Button>
                     <Button
                       size="sm"
                       variant="outline"
                       className="h-6 text-[10px] px-1.5 py-0 border-primary/40 bg-card hover:bg-primary/10"
-                      onClick={() => void testSingleClick(aqDraft.round_type_x, aqDraft.round_type_y, '반장전')}
-                      title="4. 반장전 버튼 클릭"
+                      onClick={() => void testSingleClick(aqDraft.round_type_x, aqDraft.round_type_y, '4인반장')}
+                      title="3. 4인 반장전 클릭 (11.5, 4.6)"
                     >
-                      4.반장
+                      3.반장
                     </Button>
                     <Button
                       size="sm"
@@ -800,12 +791,13 @@ export function PlayClient() {
                   /* Lobby Strategy View */
                   <div className="space-y-2.5">
                     {/* Quick 1-Click Action Buttons for Lobby */}
-                    <div className="grid grid-cols-5 gap-1">
+                    <div className="grid grid-cols-4 gap-1">
                       <Button
                         size="sm"
                         variant="outline"
                         className="h-6 text-[10px] px-1 flex items-center justify-center border-primary/40 bg-primary/5 hover:bg-primary/20"
                         onClick={() => void testSingleClick(aqDraft.rank_match_x, aqDraft.rank_match_y, '1.단위전')}
+                        title="단위전 (11.5, 2.8)"
                       >
                         1.단위전
                       </Button>
@@ -813,25 +805,19 @@ export function PlayClient() {
                         size="sm"
                         variant="outline"
                         className="h-6 text-[10px] px-1 flex items-center justify-center border-primary/40 bg-primary/5 hover:bg-primary/20"
-                        onClick={() => void testSingleClick(aqDraft.four_player_x, aqDraft.four_player_y, '2.4인마작')}
+                        onClick={() => void testSingleClick(aqDraft.room_card_x, aqDraft.room_card_y, '2.은탁')}
+                        title="은탁 (11.5, 4.6)"
                       >
-                        2.4인마작
+                        2.은탁
                       </Button>
                       <Button
                         size="sm"
                         variant="outline"
                         className="h-6 text-[10px] px-1 flex items-center justify-center border-primary/40 bg-primary/5 hover:bg-primary/20"
-                        onClick={() => void testSingleClick(aqDraft.room_card_x, aqDraft.room_card_y, '3.은탁')}
+                        onClick={() => void testSingleClick(aqDraft.round_type_x, aqDraft.round_type_y, '3.4인반장')}
+                        title="4인 반장전 (은탁과 위치 동일: 11.5, 4.6)"
                       >
-                        3.은탁
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-6 text-[10px] px-1 flex items-center justify-center border-primary/40 bg-primary/5 hover:bg-primary/20"
-                        onClick={() => void testSingleClick(aqDraft.round_type_x, aqDraft.round_type_y, '4.반장전')}
-                      >
-                        4.반장전
+                        3.4인반장
                       </Button>
                       <Button
                         size="sm"
@@ -915,7 +901,7 @@ export function PlayClient() {
 
                         {/* 1. 단위전 */}
                         <div className="flex items-center gap-1.5 text-[10px]">
-                          <span className="w-16 shrink-0 font-medium text-foreground">1. 단위전:</span>
+                          <span className="w-20 shrink-0 font-medium text-foreground">1. 단위전:</span>
                           <span className="text-muted-foreground">X</span>
                           <Input
                             type="number"
@@ -942,38 +928,9 @@ export function PlayClient() {
                           </Button>
                         </div>
 
-                        {/* 2. 4인 마작 */}
+                        {/* 2. 은탁 */}
                         <div className="flex items-center gap-1.5 text-[10px]">
-                          <span className="w-16 shrink-0 font-medium text-foreground">2. 4인 마작:</span>
-                          <span className="text-muted-foreground">X</span>
-                          <Input
-                            type="number"
-                            step={0.1}
-                            className="h-5 text-[10px] w-12 px-1 text-center"
-                            value={aqDraft.four_player_x}
-                            onChange={(e) => setAqDraft({ ...aqDraft, four_player_x: parseFloat(e.target.value || '0') })}
-                          />
-                          <span className="text-muted-foreground">Y</span>
-                          <Input
-                            type="number"
-                            step={0.1}
-                            className="h-5 text-[10px] w-12 px-1 text-center"
-                            value={aqDraft.four_player_y}
-                            onChange={(e) => setAqDraft({ ...aqDraft, four_player_y: parseFloat(e.target.value || '0') })}
-                          />
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            className="h-5 text-[10px] px-1.5 ml-auto"
-                            onClick={() => void testSingleClick(aqDraft.four_player_x, aqDraft.four_player_y, '2. 4인 마작')}
-                          >
-                            클릭
-                          </Button>
-                        </div>
-
-                        {/* 3. 은탁 */}
-                        <div className="flex items-center gap-1.5 text-[10px]">
-                          <span className="w-16 shrink-0 font-medium text-foreground">3. 은탁:</span>
+                          <span className="w-20 shrink-0 font-medium text-foreground">2. 은탁:</span>
                           <span className="text-muted-foreground">X</span>
                           <Input
                             type="number"
@@ -994,15 +951,15 @@ export function PlayClient() {
                             size="sm"
                             variant="secondary"
                             className="h-5 text-[10px] px-1.5 ml-auto"
-                            onClick={() => void testSingleClick(aqDraft.room_card_x, aqDraft.room_card_y, '3. 은탁')}
+                            onClick={() => void testSingleClick(aqDraft.room_card_x, aqDraft.room_card_y, '2. 은탁')}
                           >
                             클릭
                           </Button>
                         </div>
 
-                        {/* 4. 반장전 */}
+                        {/* 3. 4인 반장전 (은탁 버튼과 위치 동일) */}
                         <div className="flex items-center gap-1.5 text-[10px]">
-                          <span className="w-16 shrink-0 font-medium text-foreground">4. 반장전:</span>
+                          <span className="w-20 shrink-0 font-medium text-foreground">3. 4인반장:</span>
                           <span className="text-muted-foreground">X</span>
                           <Input
                             type="number"
@@ -1023,7 +980,7 @@ export function PlayClient() {
                             size="sm"
                             variant="secondary"
                             className="h-5 text-[10px] px-1.5 ml-auto"
-                            onClick={() => void testSingleClick(aqDraft.round_type_x, aqDraft.round_type_y, '4. 반장전')}
+                            onClick={() => void testSingleClick(aqDraft.round_type_x, aqDraft.round_type_y, '3. 4인 반장전')}
                           >
                             클릭
                           </Button>
@@ -1039,7 +996,7 @@ export function PlayClient() {
                       onClick={() => void testStep('full_sequence')}
                     >
                       <Play className="h-3 w-3 text-primary" />
-                      전체 로비 시뮬레이션 (단위전 → 4마 → 은탁 → 반장)
+                      전체 로비 시뮬레이션 (단위전 → 은탁 → 4인 반장전)
                     </Button>
                   </div>
                 ) : (

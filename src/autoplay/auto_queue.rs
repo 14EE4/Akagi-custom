@@ -303,7 +303,7 @@ pub async fn auto_queue_watcher(
                         let step_delay =
                             Duration::from_millis(aq.lobby_step_delay_ms.max(500) as u64);
 
-                        // 1. [단위전] 클릭
+                        // 1. [단위전] 클릭 (11.5, 2.8)
                         info!(
                             "auto_queue: clicking [단위전] button at ({:.2}, {:.2})",
                             aq.rank_match_x, aq.rank_match_y
@@ -318,22 +318,7 @@ pub async fn auto_queue_watcher(
                         .await;
                         tokio::time::sleep(step_delay).await;
 
-                        // 2. [4인 마작] 탭 클릭
-                        info!(
-                            "auto_queue: clicking [4인 마작] tab at ({:.2}, {:.2})",
-                            aq.four_player_x, aq.four_player_y
-                        );
-                        let _ = execute_click_with_indicator(
-                            &ctx,
-                            aq.four_player_x,
-                            aq.four_player_y,
-                            "2. 4인 마작",
-                            aq.show_click_indicator,
-                        )
-                        .await;
-                        tokio::time::sleep(step_delay).await;
-
-                        // 3. [은탁] 카드 클릭
+                        // 2. [은탁] 카드 클릭 (11.5, 4.6)
                         info!(
                             "auto_queue: clicking [은탁] card at ({:.2}, {:.2})",
                             aq.room_card_x, aq.room_card_y
@@ -342,22 +327,22 @@ pub async fn auto_queue_watcher(
                             &ctx,
                             aq.room_card_x,
                             aq.room_card_y,
-                            "3. 은탁",
+                            "2. 은탁",
                             aq.show_click_indicator,
                         )
                         .await;
                         tokio::time::sleep(step_delay).await;
 
-                        // 4. [반장전] 버튼 클릭
+                        // 3. [4인 반장전] 버튼 클릭 (은탁과 위치 동일: 11.5, 4.6)
                         info!(
-                            "auto_queue: clicking [반장전] button at ({:.2}, {:.2})",
+                            "auto_queue: clicking [4인 반장전] button at ({:.2}, {:.2})",
                             aq.round_type_x, aq.round_type_y
                         );
                         let res = execute_click_with_indicator(
                             &ctx,
                             aq.round_type_x,
                             aq.round_type_y,
-                            "4. 반장전",
+                            "3. 4인 반장전",
                             aq.show_click_indicator,
                         )
                         .await;

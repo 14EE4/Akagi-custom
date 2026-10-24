@@ -195,7 +195,9 @@ pub async fn auto_queue_watcher(
                         // 정산 화면을 넘기기 위한 확인 클릭:
                         // 작혼의 정산 연출(순위/점수 -> 친밀도/선물 -> 단위점수 -> 최종 결과창)을 완전히 닫기 위해
                         // 사용자가 설정한 확인 클릭 횟수(기본 3~5회)를 확실하게 모두 수행합니다.
-                        let required_confirms = aq.confirm_clicks.clamp(3, 10);
+                        // 작혼 정산 화면(순위 연출 -> 친밀도 획득 -> 미션 달성 -> 단위 포인트 -> 최종 결과 확인)을
+                        // 확실하게 모두 통과하기 위해 최소 6회 이상의 확인 클릭을 보장합니다.
+                        let required_confirms = aq.confirm_clicks.max(6).clamp(6, 15);
 
                         for click_idx in 1..=required_confirms {
                             if !cfg.read().await.autoplay.auto_queue.enabled {

@@ -171,18 +171,23 @@ function decide_delay(ctx)
   -- dip into it on ~7% of draws, so exceeding the free window is
   -- normal play, not an emergency. But when the bank is nearly dry,
   -- humans wrap up instead of risking the auto-discard timer.
+  -- 노트북 CPU 추론 지연 보정을 위한 생각 시간 소폭 슬림화 (약 20% 단축)
+  think = think * 0.8
+
   if ctx.budget ~= nil then
     -- Floored at 0: a sub-second fixed_ms must degrade to "answer at
     -- the enforced minimum", not to a negative delay_ms that Akagi
     -- would reject (which would silently disable this script for the
     -- whole room).
-    local free_s = math.max(ctx.budget.fixed_ms / 1000 - 1.0, 0)
+    local free_s = math.max(ctx.budget.fixed_ms / 1000 - 1.2, 0)
     local bank_s = ctx.budget.add_ms / 1000
     if think > free_s then
-      if bank_s >= 3.0 then
+      -- 잔여시간이 8초 미만으로 내려가면 잔여시간(은행) 사용을 엄격히 차단하고 기본 5초 내에서 신속 타패
+      if bank_s >= 8.0 then
         allow_bank = true -- natural dip; Akagi bounds how much is spent
       else
         think = free_s    -- nearly broke: finish the thought quickly
+        allow_bank = false
       end
     end
   end

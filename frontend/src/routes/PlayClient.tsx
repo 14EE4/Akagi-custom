@@ -9,6 +9,8 @@ import {
   Minimize2,
   Maximize2,
   PanelTopClose,
+  PanelRightClose,
+  PanelRightOpen,
   Play,
   Square,
   RefreshCw,
@@ -51,6 +53,7 @@ export function PlayClient() {
   const [autoQueueDialogOpen, setAutoQueueDialogOpen] = useState(false)
   const [autoQueueDebugOpen, setAutoQueueDebugOpen] = useState(false)
   const [hudMinimized, setHudMinimized] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
   const [hudSide, setHudSide] = useState<'left' | 'right'>('right')
   const [isSimulating, setIsSimulating] = useState(false)
   const [debugLogs, setDebugLogs] = useState<string[]>([])
@@ -58,7 +61,7 @@ export function PlayClient() {
     max_matches: 0,
     min_delay_sec: 8,
     max_delay_sec: 15,
-    initial_delay_ms: 26000,
+    initial_delay_ms: 30000,
     confirm_clicks: 3,
     confirm_delay_ms: 5000,
     confirm_x: 13.9,
@@ -95,7 +98,7 @@ export function PlayClient() {
       max_matches: currentAq?.max_matches ?? 0,
       min_delay_sec: currentAq?.min_delay_sec ?? 8,
       max_delay_sec: currentAq?.max_delay_sec ?? 15,
-      initial_delay_ms: currentAq?.initial_delay_ms ?? 26000,
+      initial_delay_ms: currentAq?.initial_delay_ms ?? 30000,
       confirm_clicks: currentAq?.confirm_clicks ?? 3,
       confirm_delay_ms: currentAq?.confirm_delay_ms ?? 5000,
       confirm_x: currentAq?.confirm_x ?? 13.9,
@@ -129,7 +132,7 @@ export function PlayClient() {
       max_matches: currentAq?.max_matches ?? 0,
       min_delay_sec: currentAq?.min_delay_sec ?? 8,
       max_delay_sec: currentAq?.max_delay_sec ?? 15,
-      initial_delay_ms: currentAq?.initial_delay_ms ?? 26000,
+      initial_delay_ms: currentAq?.initial_delay_ms ?? 30000,
       confirm_clicks: currentAq?.confirm_clicks ?? 3,
       confirm_delay_ms: currentAq?.confirm_delay_ms ?? 5000,
       confirm_x: currentAq?.confirm_x ?? 13.9,
@@ -626,14 +629,36 @@ export function PlayClient() {
           >
             <RotateCcw className="h-3.5 w-3.5" />
           </Button>
+
+          <Button
+            variant={sidebarOpen ? "secondary" : "outline"}
+            size="sm"
+            className="h-7 text-xs px-2 gap-1 font-medium ml-1"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            title={sidebarOpen ? "우측 사이드바 닫기" : "우측 사이드바 열기 (자동 큐 / 실시간 로그)"}
+          >
+            {sidebarOpen ? (
+              <>
+                <PanelRightClose className="h-3.5 w-3.5 text-primary" />
+                <span className="hidden sm:inline">사이드바</span>
+              </>
+            ) : (
+              <>
+                <PanelRightOpen className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="hidden sm:inline">사이드바</span>
+              </>
+            )}
+          </Button>
         </div>
       </header>
 
-      {/* Embedded native Chromium container */}
-      <div
-        ref={containerRef}
-        className="flex-1 w-full min-h-0 relative bg-zinc-950/90 flex items-center justify-center select-none"
-      >
+      {/* Main Content Area: Embedded Chromium + Right Sidebar */}
+      <div className="flex-1 w-full min-h-0 flex overflow-hidden relative">
+        {/* Embedded native Chromium container */}
+        <div
+          ref={containerRef}
+          className="flex-1 h-full min-w-0 relative bg-zinc-950/90 flex items-center justify-center select-none"
+        >
         {!status.embedded && (
           <div className="max-w-lg rounded-xl border border-border bg-card p-6 text-center shadow-2xl grid gap-5 select-none">
             {captureStatus.state !== 'running' ? (
@@ -1395,6 +1420,165 @@ export function PlayClient() {
               </div>
             )}
           </div>
+        )}
+        </div>
+
+        {/* Right Sidebar for Auto Queue & Logs */}
+        {sidebarOpen && (
+          <aside className="w-72 flex-shrink-0 border-l border-border bg-card/95 backdrop-blur-md flex flex-col h-full overflow-hidden z-20 select-none shadow-2xl">
+            {/* Sidebar Header */}
+            <div className="h-10 border-b border-border/60 px-3 flex items-center justify-between bg-muted/20 shrink-0">
+              <div className="flex items-center gap-2">
+                <Bot className="h-4 w-4 text-primary" />
+                <span className="font-bold text-xs text-foreground">자동 대국 & 로그</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
+                  autoQueueStatus.enabled ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-muted text-muted-foreground'
+                }`}>
+                  {autoQueueStatus.enabled ? '자동 매칭 ON' : 'OFF'}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                  onClick={() => setSidebarOpen(false)}
+                  title="사이드바 닫기"
+                >
+                  <PanelRightClose className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-3 space-y-3 text-xs">
+              {/* 1. Auto Queue Status Card */}
+              <div className="p-3 rounded-lg border border-border/70 bg-background/50 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="font-semibold text-xs text-foreground">자동 매칭 (Auto Queue)</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {autoQueueStatus.max_matches > 0
+                        ? `진행: ${autoQueueStatus.current_matches} / ${autoQueueStatus.max_matches} 판`
+                        : `진행: ${autoQueueStatus.current_matches} 판 완료`}
+                    </span>
+                  </div>
+                  <Switch
+                    checked={autoQueueStatus.enabled}
+                    onCheckedChange={(checked) => void toggleAutoQueue(checked)}
+                  />
+                </div>
+
+                {autoQueueStatus.enabled && (
+                  <div className="pt-1.5 border-t border-border/40 space-y-1">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-muted-foreground">현재 상태:</span>
+                      <span className="font-semibold text-primary">
+                        {autoQueueStatus.state === 'idle' && '대기 중 (게임 대기)'}
+                        {autoQueueStatus.state === 'queuing' && '정산/매칭 처리 중'}
+                        {autoQueueStatus.state === 'waiting' && (
+                          <span className="text-amber-400 font-bold">
+                            휴식 대기 ({autoQueueStatus.wait_seconds_left ?? 0}s)
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 2. Quick Action Buttons */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground px-0.5">
+                  <span>빠른 조작</span>
+                  <button
+                    onClick={() => openAutoQueueDialog()}
+                    className="text-[10px] text-primary hover:underline flex items-center gap-0.5"
+                  >
+                    <Settings2 className="h-3 w-3" />
+                    설정
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-[11px] px-2 font-medium bg-card hover:bg-primary/10 border-border"
+                    onClick={() => void testSingleClick(aqDraft.confirm_x, aqDraft.confirm_y, '확인')}
+                    title="우하단 확인/정산 탈출 클릭"
+                  >
+                    확인 1회 클릭
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-[11px] px-2 font-medium text-emerald-400 hover:text-emerald-300 border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10"
+                    onClick={() => void testStep('check_screen')}
+                    title="현재 화면 상태 감지"
+                  >
+                    화면상태 검사
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-[11px] px-2 font-medium bg-card hover:bg-primary/10 border-border"
+                    onClick={() => void testSingleClick(aqDraft.rank_match_x, aqDraft.rank_match_y, '단위전')}
+                    title="단위전 클릭"
+                  >
+                    1.단위전
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-[11px] px-2 font-medium bg-card hover:bg-primary/10 border-border"
+                    onClick={() => void testSingleClick(aqDraft.round_type_x, aqDraft.round_type_y, '3.4인반장')}
+                    title="은탁 4인 반장전 클릭"
+                  >
+                    2.은탁 4인반장
+                  </Button>
+                </div>
+              </div>
+
+              {/* 3. Realtime Logs & Notifications Feed */}
+              <div className="space-y-1.5 pt-1 flex flex-col flex-1 min-h-[200px]">
+                <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground px-0.5">
+                  <span>실시간 알림 & 로그</span>
+                  {debugLogs.length > 0 && (
+                    <button
+                      onClick={() => setDebugLogs([])}
+                      className="text-[10px] text-muted-foreground hover:text-foreground"
+                    >
+                      비우기
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex-1 bg-zinc-950/80 rounded-lg border border-border/50 p-2 overflow-y-auto space-y-1 font-mono text-[10px] max-h-72">
+                  {debugLogs.length === 0 ? (
+                    <div className="text-zinc-500 text-center py-6 select-none">
+                      로그가 여기에 실시간으로 표시됩니다
+                    </div>
+                  ) : (
+                    debugLogs.map((log, i) => (
+                      <div
+                        key={i}
+                        className={`leading-relaxed break-all ${
+                          log.includes('확인 완료') || log.includes('성공')
+                            ? 'text-emerald-400'
+                            : log.includes('실패') || log.includes('오류')
+                            ? 'text-red-400'
+                            : log.includes('클릭')
+                            ? 'text-amber-300'
+                            : 'text-zinc-300'
+                        }`}
+                      >
+                        {log}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </aside>
         )}
       </div>
 

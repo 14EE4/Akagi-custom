@@ -64,6 +64,7 @@ const CHI_PENG_GANG_PENG: u64 = 1;
 const CHI_PENG_GANG_GANG: u64 = 2;
 
 static LAST_LOBBY_PACKET_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static LAST_GAME_END_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 /// Records the timestamp of a received/sent Majsoul Lobby message (.lq.Lobby.*).
 pub fn record_lobby_packet() {
@@ -77,6 +78,20 @@ pub fn record_lobby_packet() {
 /// Returns the epoch milliseconds of the last seen Majsoul Lobby message.
 pub fn last_lobby_packet_ms() -> u64 {
     LAST_LOBBY_PACKET_MS.load(std::sync::atomic::Ordering::SeqCst)
+}
+
+/// Records the timestamp when a game officially ends (MjaiEvent::EndGame).
+pub fn record_game_end() {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    LAST_GAME_END_MS.store(now, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// Returns the epoch milliseconds of the last seen game end event.
+pub fn last_game_end_ms() -> u64 {
+    LAST_GAME_END_MS.load(std::sync::atomic::Ordering::SeqCst)
 }
 
 // AnGangAddGang.type

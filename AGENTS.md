@@ -48,10 +48,10 @@
 ## 3. 브랜치 구조 및 원격 업데이트 방법
 
 - **원격 저장소 및 브랜치 분리**:
-  - `custom` 브랜치 (`origin/custom`, `https://github.com/14EE4/Akagi-custom.git`): 커스텀 패치 및 빌드된 `akagi.exe`가 포함된 **기본 작업/실행 브랜치**
+  - `main` 브랜치 (`origin/main`, `https://github.com/14EE4/Akagi-custom.git`): 커스텀 패치 및 빌드된 `akagi.exe`가 포함된 **기본 작업/실행 브랜치**
   - `v3` 브랜치 (`upstream/v3`, `https://github.com/shinkuan/Akagi.git`): **공식 원본 순정 브랜치**
 - **앱 내 자동 업데이트(UI의 업데이트 버튼) 사용 주의**: GitHub Releases의 순정 `akagi.exe`를 내려받아 덮어쓰므로 위 커스텀 패치가 사라집니다.
-- **공식 레포(`upstream/v3`) 최신 사항을 `custom` 브랜치에 병합 및 배포하는 절차 (데스크톱)**:
+- **공식 레포(`upstream/v3`) 최신 사항을 `main` 브랜치에 병합 및 배포하는 절차 (데스크톱)**:
   ```powershell
   git checkout main
   git pull upstream v3
@@ -64,4 +64,4 @@
   git push origin main
   ```
 - **노트북에서 동기화하는 절차**:
-  - `custom` 브랜치에서 `git pull origin custom` (또는 `git pull`)만 실행하면 빌드 없이 최신 `akagi.exe`와 `mortal` 스크립트가 즉시 반영됩니다.
+  - `main` 브랜치에서 `git pull origin main` (또는 `git pull`)만 실행하면 빌드 없이 최신 `akagi.exe`와 `mortal` 스크립트가 즉시 반영됩니다.

@@ -1474,7 +1474,20 @@ export function PlayClient() {
                       <span className="text-muted-foreground">현재 상태:</span>
                       <span className="font-semibold text-primary">
                         {autoQueueStatus.state === 'idle' && '대기 중 (게임 대기)'}
-                        {autoQueueStatus.state === 'queuing' && '정산/매칭 처리 중'}
+                        {autoQueueStatus.state === 'in_game' && (
+                          <span className="text-emerald-400 font-bold flex items-center gap-1.5">
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                            </span>
+                            대국 진행 중
+                          </span>
+                        )}
+                        {autoQueueStatus.state === 'queuing' && (
+                          <span className="text-sky-400 font-bold">
+                            정산/매칭 처리 중
+                          </span>
+                        )}
                         {autoQueueStatus.state === 'waiting' && (
                           <span className="text-amber-400 font-bold">
                             휴식 대기 ({autoQueueStatus.wait_seconds_left ?? 0}s)

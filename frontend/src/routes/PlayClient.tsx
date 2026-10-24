@@ -59,6 +59,27 @@ export function PlayClient() {
   const [hudSide, setHudSide] = useState<'left' | 'right'>('right')
   const [isSimulating, setIsSimulating] = useState(false)
   const [debugLogs, setDebugLogs] = useState<string[]>([])
+  const [isCheckingScreen, setIsCheckingScreen] = useState(false)
+  const [screenCheckResult, setScreenCheckResult] = useState<string | null>(null)
+
+  const checkScreenState = async () => {
+    if (!HAS_TAURI) return
+    setIsCheckingScreen(true)
+    try {
+      const res = await invoke<string>('test_auto_queue_step', { step: 'check_screen' })
+      appendDebugLog(`[화면감지] ${res}`)
+      const desc = res.split('[')[0]?.replace('현재 작혼 화면 상태:', '').trim() || res
+      setScreenCheckResult(desc)
+      toast.success(desc)
+    } catch (e: any) {
+      const msg = e?.message || String(e)
+      appendDebugLog(`[화면감지] 실패: ${msg}`)
+      setScreenCheckResult(`감지 실패: ${msg}`)
+      toast.error(`화면 감지 실패: ${msg}`)
+    } finally {
+      setIsCheckingScreen(false)
+    }
+  }
   const [aqDraft, setAqDraft] = useState({
     max_matches: 0,
     min_delay_sec: 8,
@@ -1462,18 +1483,45 @@ export function PlayClient() {
                   </div>
                 )}
 
-                {/* 화면 상태 감지 버튼 */}
-                <div className="pt-1 border-t border-border/40">
+                {/* 화면 상태 감지 버튼 & 결과 표시 */}
+                <div className="pt-1 border-t border-border/40 space-y-1.5">
                   <Button
                     size="sm"
                     variant="outline"
-                    className="w-full h-7 text-[11px] font-medium text-emerald-400 hover:text-emerald-300 border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 flex items-center justify-center gap-1.5"
-                    onClick={() => void testStep('check_screen')}
+                    disabled={isCheckingScreen}
+                    className="w-full h-7 text-[11px] font-medium text-emerald-400 hover:text-emerald-300 border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                    onClick={() => void checkScreenState()}
                     title="현재 작혼 화면 상태(로비 / 정산 / 대국 중) 감지 및 로그 기록"
                   >
-                    <Scan className="h-3.5 w-3.5" />
-                    현재 화면 상태 감지
+                    {isCheckingScreen ? (
+                      <>
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                        화면 상태 분석 중...
+                      </>
+                    ) : (
+                      <>
+                        <Scan className="h-3.5 w-3.5" />
+                        현재 화면 상태 감지
+                      </>
+                    )}
                   </Button>
+
+                  {screenCheckResult && (
+                    <div className="p-2 rounded bg-muted/70 border border-border/60 text-center animate-in fade-in zoom-in-95 duration-150">
+                      <span className="text-[10px] text-muted-foreground block mb-0.5">최근 화면 감지 결과</span>
+                      <span className={`text-[11px] font-bold block ${
+                        screenCheckResult.includes('로비')
+                          ? 'text-sky-400'
+                          : screenCheckResult.includes('정산') || screenCheckResult.includes('결과')
+                          ? 'text-amber-400'
+                          : screenCheckResult.includes('대국')
+                          ? 'text-emerald-400'
+                          : 'text-rose-400'
+                      }`}>
+                        {screenCheckResult}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 

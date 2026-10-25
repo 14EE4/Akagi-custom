@@ -251,23 +251,19 @@ pub async fn auto_queue_watcher(
                             continue;
                         }
 
-                        // 정산 완료 공식 확정 -> 메인 로비 상태
-                        crate::bridge::majsoul::record_settlement_finished();
-                        info!("auto_queue: 정산 화면 확인 클릭 완료 -> 메인 로비 상태로 전환");
+                        info!("auto_queue: 정산 화면 확인 클릭 완료 -> 메인 로비 진입 패킷 관찰 대기");
 
                         // 로비 최종 도달 안정화 대기
-                        tokio::time::sleep(Duration::from_millis(1500)).await;
+                        tokio::time::sleep(Duration::from_millis(2000)).await;
 
-                        // 휴식 딜레이 카운트다운
-                        let min_sec = aq.min_delay_sec.max(2);
-                        let max_sec = aq.max_delay_sec.max(min_sec);
-                        let delay_sec = rand::rng().random_range(min_sec..=max_sec);
+                        // 로비 패킷 관찰을 위해 60초간 단위전 매칭을 대기하고 로비 화면 유지
+                        let delay_sec = 60u32;
 
                         let _ = notify.send(Notification {
                             level: NotifyLevel::Info,
-                            title: "자동 다음 대국 대기".into(),
+                            title: "로비 패킷 관찰 대기 (60초)".into(),
                             body: Some(format!(
-                                "{delay_sec}초 후 로비에서 단위전 매칭을 시작합니다. ({progress_str})"
+                                "확인 클릭 완료. 메인 로비 진입 패킷 관찰을 위해 {delay_sec}초간 매칭을 대기합니다. ({progress_str})"
                             )),
                             sticky: false,
                             id: Some("auto-queue-waiting".into()),

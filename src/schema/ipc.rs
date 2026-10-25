@@ -353,6 +353,33 @@ impl Default for AutoQueueStatus {
     }
 }
 
+/// Realtime telemetry event emitted when a Majsoul WebSocket frame (lobby or game end) is captured.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MajsoulPacketEvent {
+    /// Local timestamp formatted as HH:mm:ss.SSS.
+    pub timestamp: String,
+    /// Method name (e.g. `.lq.Lobby.loginBeat` or `.lq.NotifyGameEndResult`).
+    pub method: String,
+    /// Message type: "REQUEST", "RESPONSE", "NOTIFY", "INTERNAL".
+    pub kind: String,
+    /// Direction: "Up", "Down", "Local".
+    pub direction: String,
+    /// Whether settlement / post-game screen is currently active.
+    pub is_settling: bool,
+    /// Whether this packet triggered a key state change (game end or lobby entry).
+    pub is_key_trigger: bool,
+    /// Human-readable explanation or notes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+    /// Resolved overall screen state: "in_game", "settling", "lobby".
+    #[serde(default = "default_screen_state")]
+    pub screen_state: String,
+}
+
+fn default_screen_state() -> String {
+    "lobby".to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

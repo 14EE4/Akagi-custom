@@ -2067,103 +2067,24 @@ pub async fn test_auto_queue_step(
             let ctx = state.autoplay_context.clone();
             let notify = state.notify_bus.clone();
             tauri::async_runtime::spawn(async move {
-                if aq.strategy != "rematch" {
-                    // Lobby strategy simulation
-                    let _ = notify.send(crate::schema::Notification {
-                        level: crate::schema::NotifyLevel::Info,
-                        title: "로비 시퀀스 테스트 시작".into(),
-                        body: Some("로비 탈출 -> [단위전] -> [은탁] -> [4인 반장전] 시뮬레이션을 시작합니다.".into()),
-                        sticky: false,
-                        id: Some("auto-queue-sim".into()),
-                    });
+                let _ = notify.send(crate::schema::Notification {
+                    level: crate::schema::NotifyLevel::Info,
+                    title: "로비 시퀀스 테스트 시작".into(),
+                    body: Some("로비 탈출 -> [단위전] -> [은탁] -> [4인 반장전] 시뮬레이션을 시작합니다.".into()),
+                    sticky: false,
+                    id: Some("auto-queue-sim".into()),
+                });
 
-                    // 1. Check if already in lobby; if not, do confirm clicks
-                    let page_guard = ctx.page.read().await;
-                    let cur_screen = if let Some(page) = page_guard.as_ref() {
-                        crate::autoplay::cdp_input::evaluate_majsoul_screen_state(page).await.unwrap_or(crate::autoplay::cdp_input::MajsoulScreenState::Unknown)
-                    } else {
-                        crate::autoplay::cdp_input::MajsoulScreenState::Unknown
-                    };
-                    drop(page_guard);
-
-                    if cur_screen != crate::autoplay::cdp_input::MajsoulScreenState::Lobby {
-                        for i in 1..=aq.confirm_clicks {
-                            if !SIM_RUNNING.load(std::sync::atomic::Ordering::SeqCst) {
-                                return;
-                            }
-                            let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
-                                &ctx,
-                                aq.confirm_x,
-                                aq.confirm_y,
-                                &format!("확인/로비탈출 ({i}/{})", aq.confirm_clicks),
-                                true,
-                            ).await;
-                            if !interruptible_sleep(aq.confirm_delay_ms as u64).await {
-                                return;
-                            }
-                        }
-                        crate::bridge::majsoul::record_settlement_finished();
-                    }
-
-                    if !interruptible_sleep(aq.lobby_step_delay_ms as u64).await {
-                        return;
-                    }
-
-                    // 1. Click 단위전 (11.5, 2.8)
-                    let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
-                        &ctx,
-                        aq.rank_match_x,
-                        aq.rank_match_y,
-                        "1. 단위전",
-                        true,
-                    ).await;
-                    if !interruptible_sleep(aq.lobby_step_delay_ms as u64).await {
-                        return;
-                    }
-
-                    // 2. Click 은탁 (11.5, 4.6)
-                    let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
-                        &ctx,
-                        aq.room_card_x,
-                        aq.room_card_y,
-                        "2. 은탁",
-                        true,
-                    ).await;
-                    if !interruptible_sleep(aq.lobby_step_delay_ms as u64).await {
-                        return;
-                    }
-
-                    // 3. Click 4인 반장전 (은탁과 위치 동일: 11.5, 4.6)
-                    let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
-                        &ctx,
-                        aq.round_type_x,
-                        aq.round_type_y,
-                        "3. 4인 반장전",
-                        true,
-                    ).await;
-
-                    SIM_RUNNING.store(false, std::sync::atomic::Ordering::SeqCst);
-                    let _ = notify.send(crate::schema::Notification {
-                        level: crate::schema::NotifyLevel::Success,
-                        title: "로비 시퀀스 테스트 완료".into(),
-                        body: Some("로비 단위전 자동 클릭 시뮬레이션이 완료되었습니다.".into()),
-                        sticky: false,
-                        id: Some("auto-queue-sim".into()),
-                    });
+                // 1. Check if already in lobby; if not, do confirm clicks
+                let page_guard = ctx.page.read().await;
+                let cur_screen = if let Some(page) = page_guard.as_ref() {
+                    crate::autoplay::cdp_input::evaluate_majsoul_screen_state(page).await.unwrap_or(crate::autoplay::cdp_input::MajsoulScreenState::Unknown)
                 } else {
-                    // Legacy rematch simulation
-                    let _ = notify.send(crate::schema::Notification {
-                        level: crate::schema::NotifyLevel::Info,
-                        title: "시퀀스 테스트 시작".into(),
-                        body: Some(format!("확인 {}회 -> 한번더 -> 네 시뮬레이션을 시작합니다.", aq.confirm_clicks)),
-                        sticky: false,
-                        id: Some("auto-queue-sim".into()),
-                    });
+                    crate::autoplay::cdp_input::MajsoulScreenState::Unknown
+                };
+                drop(page_guard);
 
-                    if !interruptible_sleep(aq.initial_delay_ms as u64).await {
-                        return;
-                    }
-
+                if cur_screen != crate::autoplay::cdp_input::MajsoulScreenState::Lobby {
                     for i in 1..=aq.confirm_clicks {
                         if !SIM_RUNNING.load(std::sync::atomic::Ordering::SeqCst) {
                             return;
@@ -2172,47 +2093,61 @@ pub async fn test_auto_queue_step(
                             &ctx,
                             aq.confirm_x,
                             aq.confirm_y,
-                            &format!("확인 ({i}/{})", aq.confirm_clicks),
+                            &format!("확인/로비탈출 ({i}/{})", aq.confirm_clicks),
                             true,
                         ).await;
                         if !interruptible_sleep(aq.confirm_delay_ms as u64).await {
                             return;
                         }
                     }
-
-                    if !interruptible_sleep(aq.rematch_delay_ms as u64).await {
-                        return;
-                    }
-
-                    let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
-                        &ctx,
-                        aq.rematch_x,
-                        aq.rematch_y,
-                        "한번더 (재전)",
-                        true,
-                    ).await;
-
-                    if !interruptible_sleep(aq.modal_delay_ms as u64).await {
-                        return;
-                    }
-
-                    let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
-                        &ctx,
-                        aq.modal_yes_x,
-                        aq.modal_yes_y,
-                        "네 (확인)",
-                        true,
-                    ).await;
-
-                    SIM_RUNNING.store(false, std::sync::atomic::Ordering::SeqCst);
-                    let _ = notify.send(crate::schema::Notification {
-                        level: crate::schema::NotifyLevel::Success,
-                        title: "시퀀스 테스트 완료".into(),
-                        body: Some("전체 클릭 시뮬레이션이 성공적으로 완료되었습니다.".into()),
-                        sticky: false,
-                        id: Some("auto-queue-sim".into()),
-                    });
+                    crate::bridge::majsoul::record_settlement_finished();
                 }
+
+                if !interruptible_sleep(aq.lobby_step_delay_ms as u64).await {
+                    return;
+                }
+
+                // 1. Click 단위전 (11.5, 2.8)
+                let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
+                    &ctx,
+                    aq.rank_match_x,
+                    aq.rank_match_y,
+                    "1. 단위전",
+                    true,
+                ).await;
+                if !interruptible_sleep(aq.lobby_step_delay_ms as u64).await {
+                    return;
+                }
+
+                // 2. Click 은탁 (11.5, 4.6)
+                let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
+                    &ctx,
+                    aq.room_card_x,
+                    aq.room_card_y,
+                    "2. 은탁",
+                    true,
+                ).await;
+                if !interruptible_sleep(aq.lobby_step_delay_ms as u64).await {
+                    return;
+                }
+
+                // 3. Click 4인 반장전 (은탁과 위치 동일: 11.5, 4.6)
+                let _ = crate::autoplay::auto_queue::execute_click_with_indicator(
+                    &ctx,
+                    aq.round_type_x,
+                    aq.round_type_y,
+                    "3. 4인 반장전",
+                    true,
+                ).await;
+
+                SIM_RUNNING.store(false, std::sync::atomic::Ordering::SeqCst);
+                let _ = notify.send(crate::schema::Notification {
+                    level: crate::schema::NotifyLevel::Success,
+                    title: "로비 시퀀스 테스트 완료".into(),
+                    body: Some("로비 단위전 자동 클릭 시뮬레이션이 완료되었습니다.".into()),
+                    sticky: false,
+                    id: Some("auto-queue-sim".into()),
+                });
             });
             Ok("전체 시퀀스 시뮬레이션이 백그라운드에서 시작되었습니다.".into())
         }

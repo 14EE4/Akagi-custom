@@ -333,6 +333,13 @@ export function PlayClient() {
 
   const topSuggestions = useMemo(() => visibleItems(latestShow, 3), [latestShow])
 
+  // Check if browser is actively running, starting, or visible on screen
+  const isBrowserActive =
+    captureStatus.state === 'running' ||
+    captureStatus.state === 'starting' ||
+    status.browser_found ||
+    status.embedded
+
   const syncGeometry = useCallback(async () => {
     if (!HAS_TAURI) return
     const el = containerRef.current
@@ -440,14 +447,17 @@ export function PlayClient() {
   }
 
   const restartCapture = async () => {
-    if (!HAS_TAURI) return
+    if (!HAS_TAURI || busy) return
     setBusy(true)
     try {
       await invoke('restart_capture')
-    } catch {
-      /* ignore */
+    } catch (e: any) {
+      toast.error(`작혼 브라우저 실행 실패: ${e?.message || e}`)
     } finally {
-      setBusy(false)
+      // Cooldown to ensure backend initializes and status propagates cleanly
+      setTimeout(() => {
+        setBusy(false)
+      }, 1500)
     }
   }
 
@@ -518,9 +528,14 @@ export function PlayClient() {
             />
           </div>
 
-          <ServerSelector variant="header" disabled={busy} />
+          <ServerSelector
+            variant="header"
+            disabled={busy}
+            isBrowserActive={isBrowserActive}
+            onBusyChange={setBusy}
+          />
 
-          {captureStatus.state !== 'running' && (
+          {!isBrowserActive && !busy && (
             <Button
               size="sm"
               className="h-7 text-xs px-2.5 gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs font-semibold"
@@ -623,7 +638,7 @@ export function PlayClient() {
         >
         {!status.embedded && (
           <div className="max-w-lg rounded-xl border border-border bg-card p-6 text-center shadow-2xl grid gap-5 select-none">
-            {captureStatus.state !== 'running' ? (
+            {!isBrowserActive ? (
               <>
                 <div className="grid gap-1.5">
                   <h3 className="text-lg font-bold text-foreground flex items-center justify-center gap-2">
@@ -642,7 +657,12 @@ export function PlayClient() {
                     <Globe className="h-3.5 w-3.5 text-primary" />
                     접속 서버 (지역)
                   </span>
-                  <ServerSelector variant="button-group" disabled={busy} />
+                  <ServerSelector
+                    variant="button-group"
+                    disabled={busy}
+                    isBrowserActive={isBrowserActive}
+                    onBusyChange={setBusy}
+                  />
                 </div>
 
                 <div className="flex flex-col gap-3 pt-1">

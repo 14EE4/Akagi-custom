@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Globe, Check, AlertTriangle, RotateCcw, X } from 'lucide-react'
+import { Globe, Check, AlertTriangle, RotateCcw, X, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { useConfigStore } from '@/stores/configStore'
@@ -12,6 +12,8 @@ interface ServerSelectorProps {
   variant?: 'header' | 'button-group' | 'compact'
   disabled?: boolean
   className?: string
+  isBrowserActive?: boolean
+  onBusyChange?: (busy: boolean) => void
 }
 
 const PRESET_SHORT_NAMES: Record<string, string> = {
@@ -21,7 +23,13 @@ const PRESET_SHORT_NAMES: Record<string, string> = {
   cn: '중섭 (CN)',
 }
 
-export function ServerSelector({ variant = 'header', disabled = false, className = '' }: ServerSelectorProps) {
+export function ServerSelector({
+  variant = 'header',
+  disabled = false,
+  className = '',
+  isBrowserActive,
+  onBusyChange,
+}: ServerSelectorProps) {
   const { t } = useTranslation()
   const config = useConfigStore((s) => s.config)
   const setConfig = useConfigStore((s) => s.setConfig)
@@ -30,22 +38,26 @@ export function ServerSelector({ variant = 'header', disabled = false, className
   // Inline confirmation state for when browser is already running
   // Avoids popup/dialog which gets occluded behind native Win32 Chromium window
   const [pendingPreset, setPendingPreset] = useState<{ url: string; label: string } | null>(null)
+  const [isSwitching, setIsSwitching] = useState(false)
 
   const info = platformInfo('Majsoul')
   const presets = info?.presets ?? []
 
   const currentUrl = config?.capture?.chromium?.start_url ?? info?.defaultStartUrl ?? ''
 
+  const effectiveRunning =
+    isBrowserActive ?? (captureStatus.state === 'running' || captureStatus.state === 'starting')
+
   const handleSelectServer = async (presetUrl: string, presetLabelKey: string) => {
+    if (disabled || isSwitching) return
     if (presetUrl.trim() === currentUrl.trim()) {
       setPendingPreset(null)
       return
     }
 
-    const isRunning = captureStatus.state === 'running'
     const label = t(presetLabelKey)
 
-    if (isRunning) {
+    if (effectiveRunning) {
       setPendingPreset({ url: presetUrl, label })
       return
     }
@@ -54,21 +66,24 @@ export function ServerSelector({ variant = 'header', disabled = false, className
   }
 
   const applyServerChange = async (url: string, label: string, shouldRestart: boolean) => {
-    if (!config) return
-    const nextConfig = {
-      ...config,
-      capture: {
-        ...config.capture,
-        chromium: {
-          ...config.capture.chromium,
-          start_url: url,
-        },
-      },
-    }
-    setConfig(nextConfig)
+    if (!config || isSwitching) return
+    setIsSwitching(true)
+    onBusyChange?.(true)
 
-    if (HAS_TAURI) {
-      try {
+    try {
+      const nextConfig = {
+        ...config,
+        capture: {
+          ...config.capture,
+          chromium: {
+            ...config.capture.chromium,
+            start_url: url,
+          },
+        },
+      }
+      setConfig(nextConfig)
+
+      if (HAS_TAURI) {
         await invoke('update_config', { newConfig: nextConfig })
         if (shouldRestart) {
           await invoke('restart_capture')
@@ -76,18 +91,26 @@ export function ServerSelector({ variant = 'header', disabled = false, className
         } else {
           toast.success(`접속 서버가 [${label}]로 설정되었습니다.`)
         }
-      } catch (err: any) {
-        toast.error(`서버 설정 실패: ${err?.message || err}`)
       }
+    } catch (err: any) {
+      toast.error(`서버 설정 실패: ${err?.message || err}`)
+    } finally {
+      setPendingPreset(null)
+      // Small cooldown to let backend process spawn and status update arrive
+      setTimeout(() => {
+        setIsSwitching(false)
+        onBusyChange?.(false)
+      }, 1500)
     }
-    setPendingPreset(null)
   }
 
   const handleConfirmSwitch = async () => {
-    if (pendingPreset) {
+    if (pendingPreset && !isSwitching && !disabled) {
       await applyServerChange(pendingPreset.url, pendingPreset.label, true)
     }
   }
+
+  const isControlDisabled = disabled || isSwitching
 
   // Full-size button group for the pre-launch central card
   if (variant === 'button-group') {
@@ -101,7 +124,7 @@ export function ServerSelector({ variant = 'header', disabled = false, className
               type="button"
               size="default"
               variant={active ? 'default' : 'outline'}
-              disabled={disabled}
+              disabled={isControlDisabled}
               onClick={() => void handleSelectServer(preset.url, preset.labelKey)}
               className={`h-11 px-3 flex flex-col items-center justify-center gap-0.5 transition-all text-xs ${
                 active
@@ -127,7 +150,12 @@ export function ServerSelector({ variant = 'header', disabled = false, className
   // Completely immune to being occluded by Chromium's native window!
   return (
     <div className={`flex items-center gap-1.5 ${className}`}>
-      {pendingPreset ? (
+      {isSwitching ? (
+        <div className="flex items-center gap-1.5 bg-muted/70 border border-border px-2.5 py-1 rounded-md text-xs text-muted-foreground animate-pulse">
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+          <span className="font-medium text-[11px]">서버 전환 및 재시작 중…</span>
+        </div>
+      ) : pendingPreset ? (
         <div className="flex items-center gap-1.5 bg-amber-500/15 border border-amber-500/40 px-2 py-0.5 rounded-md text-xs animate-in fade-in duration-150">
           <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
           <span className="text-amber-500 font-medium">
@@ -137,7 +165,7 @@ export function ServerSelector({ variant = 'header', disabled = false, className
             size="sm"
             className="h-6 text-[11px] px-2 bg-amber-500 hover:bg-amber-600 text-black font-semibold gap-1"
             onClick={() => void handleConfirmSwitch()}
-            disabled={disabled}
+            disabled={isControlDisabled}
           >
             <RotateCcw className="h-3 w-3" />
             재시작
@@ -147,6 +175,7 @@ export function ServerSelector({ variant = 'header', disabled = false, className
             variant="ghost"
             className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
             onClick={() => setPendingPreset(null)}
+            disabled={isControlDisabled}
             title="취소"
           >
             <X className="h-3.5 w-3.5" />
@@ -167,7 +196,7 @@ export function ServerSelector({ variant = 'header', disabled = false, className
                 type="button"
                 size="sm"
                 variant={active ? 'default' : 'ghost'}
-                disabled={disabled}
+                disabled={isControlDisabled}
                 onClick={() => void handleSelectServer(preset.url, preset.labelKey)}
                 className={`h-6 text-[11px] px-2 font-medium transition-all ${
                   active

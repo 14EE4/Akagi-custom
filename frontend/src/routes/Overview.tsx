@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Bot, Shield, ScrollText, Gamepad2, Settings as SettingsIcon, Download, X } from 'lucide-react'
+import { Bot, Shield, ScrollText, Gamepad2, Play, Settings as SettingsIcon, Download, X } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useBotStore } from '@/stores/botStore'
@@ -80,8 +80,14 @@ export function Overview() {
         </CardContent>
       </Card>
 
-      <div className="flex gap-2">
-        <Button asChild>
+      <div className="flex flex-wrap items-center gap-2.5">
+        <Button asChild size="default" className="gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-xs">
+          <Link to="/play">
+            <Play className="h-4 w-4 fill-current" />
+            작혼 플레이
+          </Link>
+        </Button>
+        <Button asChild variant="outline">
           <Link to="/game" className="gap-1.5">
             <Gamepad2 className="h-4 w-4" />
             {t('overview.open_dashboard')}

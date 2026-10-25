@@ -20,6 +20,7 @@ export default function App() {
   const scale = useUiPrefsStore((s) => s.scale)
   const isOpen = useSidebar((s) => s.isOpen)
   const settings = useSidebar((s) => s.settings)
+  const isPlayRoute = location.pathname === '/play'
 
   // Apply UI scale by adjusting :root font-size — the design system is
   // rem-based so this scales typography, spacing, icons, sidebar width
@@ -53,24 +54,24 @@ export default function App() {
 
   return (
     <>
-      <Sidebar />
+      {!isPlayRoute && <Sidebar />}
       <main
         className={cn(
           'h-screen flex flex-col min-w-0 overflow-hidden bg-background text-foreground transition-[margin-left] ease-in-out duration-300',
-          // Margin tracks the *pinned* width only — hover-open expands the
-          // sidebar over main content (z-20) without shifting layout, so
-          // width-sensitive widgets like the GameDashboard's react-grid-layout
-          // don't re-flow every time the cursor brushes the sidebar.
-          settings.disabled
-            ? 'lg:ml-0'
-            : isOpen
-              ? 'lg:ml-[18rem]'
-              : 'lg:ml-[5.625rem]',
+          // In the `/play` route, hide the sidebar completely and reclaim all space.
+          // Otherwise, track pinned width only (hover expands as an overlay).
+          isPlayRoute
+            ? 'ml-0'
+            : settings.disabled
+              ? 'lg:ml-0'
+              : isOpen
+                ? 'lg:ml-[18rem]'
+                : 'lg:ml-[5.625rem]',
         )}
       >
         {/* Below `lg` the sidebar is an off-screen drawer, so this is the
-            only navigation entry point. Renders null when docked. */}
-        <NarrowTopBar />
+            only navigation entry point. Renders null when docked or in play view. */}
+        {!isPlayRoute && <NarrowTopBar />}
         <div className="flex-1 overflow-auto">
           {/* Keyed by route so a crash on one page doesn't poison the others. */}
           <ErrorBoundary key={location.pathname}>

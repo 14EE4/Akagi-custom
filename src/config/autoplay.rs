@@ -248,7 +248,7 @@ pub struct AutoQueueConfig {
 
     /// Initial delay in ms after game end before the first confirm click. Default: 30000 (30s)
     pub initial_delay_ms: u32,
-    /// Number of confirm ("확인") clicks to advance through settlement screens (2 for normal characters, 3 for bonded/contracted). Default: 3
+    /// Number of confirm ("확인") clicks to advance through settlement screens (typically 4 for all results + bond/rank transitions). Default: 4
     pub confirm_clicks: u32,
     /// Delay between confirm clicks in ms. Default: 5000 (5s)
     pub confirm_delay_ms: u32,
@@ -313,7 +313,7 @@ impl Default for AutoQueueConfig {
             min_delay_sec: 8,
             max_delay_sec: 15,
             initial_delay_ms: 30000,
-            confirm_clicks: 6,
+            confirm_clicks: 4,
             confirm_delay_ms: 5000,
             confirm_x: 13.9,
             confirm_y: 8.2,

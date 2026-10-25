@@ -1,25 +1,16 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ChevronLeft, Megaphone, X } from 'lucide-react'
+import { ChevronLeft, X } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 import { useSidebar } from '@/hooks/useSidebar'
 import { useIsNarrow } from '@/hooks/useIsNarrow'
-import { GithubMark, DiscordMark } from '@/components/BrandMarks'
 import { AkagiIcon, AkagiWordmark } from '@/components/BrandLogo'
-import { AKAGI_GITHUB_URL, AKAGI_DISCORD_URL, AKAGIMS_GITHUB_URL, openExternal } from '@/lib/external'
 import { getAppVersion, VERSION_FALLBACK } from '@/lib/appVersion'
 import { LANG_LABELS, SUPPORTED_LANGS, type SupportedLang } from '@/i18n'
 import { selectHasNotifiableUpdate, useUpdaterStore } from '@/stores/updaterStore'
-import { useAnnouncementStore } from '@/stores/announcementStore'
 import { Menu } from './Menu'
 
 export function Sidebar() {
@@ -156,49 +147,9 @@ export function Sidebar() {
             ))}
         </div>
         <Menu isOpen={open} />
-        {/* Footer icon row — announcements plus the GitHub / Discord /
-            AkagiMS links. Always rendered, even when collapsed, so all
-            stay reachable in both states. The version + language picker
-            rides along below it but only when there's room (open state). */}
-        <div
-          className={cn(
-            // flex-wrap: the collapsed rail (5.625rem) fits two icon
-            // buttons per row, so these wrap onto two rows.
-            'mt-2 shrink-0 flex flex-wrap items-center gap-1 border-t border-border pt-3',
-            open ? 'justify-start px-1' : 'justify-center',
-          )}
-        >
-          <SidebarIconButton
-            label={t('sidebar.announcements')}
-            collapsed={!open}
-            onClick={() => useAnnouncementStore.getState().openHistory()}
-          >
-            <Megaphone className="h-4 w-4" />
-          </SidebarIconButton>
-          <SidebarIconButton
-            label="GitHub"
-            collapsed={!open}
-            onClick={() => openExternal(AKAGI_GITHUB_URL)}
-          >
-            <GithubMark className="h-4 w-4" />
-          </SidebarIconButton>
-          <SidebarIconButton
-            label="Discord"
-            collapsed={!open}
-            onClick={() => openExternal(AKAGI_DISCORD_URL)}
-          >
-            <DiscordMark className="h-4 w-4" />
-          </SidebarIconButton>
-          <SidebarIconButton
-            label="AkagiMS"
-            collapsed={!open}
-            onClick={() => openExternal(AKAGIMS_GITHUB_URL)}
-          >
-            <AkagiIcon className="h-4 w-4" />
-          </SidebarIconButton>
-        </div>
+
         {open && (
-          <div className="mt-2 shrink-0 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+          <div className="mt-2 shrink-0 flex items-center justify-between gap-2 text-xs text-muted-foreground border-t border-border pt-2.5">
             <button
               type="button"
               onClick={hasUpdate ? openUpdateDialog : undefined}
@@ -237,39 +188,5 @@ export function Sidebar() {
         </div>
       </aside>
     </>
-  )
-}
-
-function SidebarIconButton({
-  label,
-  collapsed,
-  onClick,
-  children,
-}: {
-  label: string
-  collapsed: boolean
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  // Only show the right-side tooltip when the sidebar is collapsed —
-  // when expanded, the button sits in plain view and tooltips would
-  // just be visual noise.
-  return (
-    <TooltipProvider disableHoverableContent>
-      <Tooltip delayDuration={100}>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9 text-muted-foreground hover:text-foreground"
-            onClick={onClick}
-            aria-label={label}
-          >
-            {children}
-          </Button>
-        </TooltipTrigger>
-        {collapsed && <TooltipContent side="right">{label}</TooltipContent>}
-      </Tooltip>
-    </TooltipProvider>
   )
 }

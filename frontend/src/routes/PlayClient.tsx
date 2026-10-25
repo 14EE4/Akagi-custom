@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { AkagiWordmark } from '@/components/BrandLogo'
 import {
+  Activity,
   ArrowLeftRight,
   Bot,
   Crosshair,
@@ -15,6 +18,7 @@ import {
   Square,
   RefreshCw,
   RotateCcw,
+  Trophy,
   Scan,
   Settings2,
   X,
@@ -37,6 +41,10 @@ import { useCaptureStore } from '@/stores/captureStore'
 import { useSidebar } from '@/hooks/useSidebar'
 import { useIsNarrow } from '@/hooks/useIsNarrow'
 import { useUiPrefsStore } from '@/stores/uiPrefsStore'
+import { useGameStore } from '@/stores/gameStore'
+import { useAnalysisStore } from '@/stores/analysisStore'
+import { useHistoryStore } from '@/stores/historyStore'
+import { useBotStore } from '@/stores/botStore'
 
 interface EmbeddedBrowserStatus {
   enabled: boolean
@@ -63,6 +71,90 @@ export function PlayClient() {
   const [isCheckingScreen, setIsCheckingScreen] = useState(false)
   const [screenCheckResult, setScreenCheckResult] = useState<string | null>(null)
   const [recentPacket, setRecentPacket] = useState<MajsoulPacketEvent | null>(null)
+
+  const game = useGameStore((s) => s.game)
+  const analysisResult = useAnalysisStore((s) => s.result)
+  const historyRecords = useHistoryStore((s) => s.records)
+  const botStatus = useBotStore((s) => s.status)
+
+  // Live match score & rank calculation
+  const liveMatchInfo = useMemo(() => {
+    if (!game || game.is_done) return null
+    const windMap: Record<string, string> = { E: '동', S: '남', W: '서', N: '북' }
+    const kyokuStr = `${windMap[game.bakaze] ?? '동'} ${game.kyoku}국`
+    const honbaStr = game.honba > 0 ? ` ${game.honba}본장` : ''
+    const kyotakuStr = game.kyotaku > 0 ? ` (공탁 ${game.kyotaku * 1000}점)` : ''
+
+    const playersWithRanks = game.players
+      .map((p, idx) => ({
+        seat: idx,
+        score: p.score,
+        isUs: idx === game.our_seat,
+        riichi: p.riichi_declared,
+      }))
+      .sort((a, b) => b.score - a.score)
+      .map((p, rankIdx) => ({
+        ...p,
+        rank: rankIdx + 1,
+      }))
+
+    const myEntry = playersWithRanks.find((p) => p.isUs)
+    const topScore = playersWithRanks[0]?.score ?? 0
+    const myScore = myEntry?.score ?? 0
+    const diffWithFirst = topScore - myScore
+
+    let shantenDesc: string | null = null
+    if (analysisResult && typeof analysisResult.shanten === 'number') {
+      if (analysisResult.shanten === 0) shantenDesc = '텐파이'
+      else if (analysisResult.shanten < 0) shantenDesc = '화료'
+      else shantenDesc = `${analysisResult.shanten}샹텐`
+    }
+
+    return {
+      title: `${kyokuStr}${honbaStr}${kyotakuStr}`,
+      players: playersWithRanks,
+      myRank: myEntry?.rank ?? 1,
+      myScore,
+      diffWithFirst,
+      shantenDesc,
+    }
+  }, [game, analysisResult])
+
+  // Today's session records summary
+  const sessionStats = useMemo(() => {
+    const todayStr = new Date().toDateString()
+    const todayRecords = historyRecords.filter((r) => {
+      try {
+        return new Date(r.started_at).toDateString() === todayStr
+      } catch {
+        return false
+      }
+    })
+    const ranks = [0, 0, 0, 0]
+    todayRecords.forEach((r) => {
+      if (r.our_rank && r.our_rank >= 1 && r.our_rank <= 4) {
+        ranks[r.our_rank - 1]++
+      }
+    })
+    const total = todayRecords.length
+    const rentai = total > 0 ? Math.round(((ranks[0] + ranks[1]) / total) * 100) : 0
+    return {
+      total,
+      ranks,
+      rentai,
+    }
+  }, [historyRecords])
+
+  // Bot engine info
+  const botInfo = useMemo(() => {
+    const botName = 'bot' in botStatus && botStatus.bot ? botStatus.bot : 'Mortal v4'
+    const isRunning = botStatus.state === 'ready'
+    return {
+      name: botName,
+      state: botStatus.state,
+      isRunning,
+    }
+  }, [botStatus])
 
   const checkScreenState = async () => {
     if (!HAS_TAURI) return
@@ -510,8 +602,16 @@ export function PlayClient() {
       {/* Top compact control & AI recommendation bar */}
       <header className="h-11 shrink-0 px-3 border-b border-border bg-card/80 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="font-bold text-xs text-foreground/90 tracking-tight flex items-center gap-1.5">
-            <Gamepad2 className="h-4 w-4 text-primary" />
+          <Link
+            to="/"
+            className="flex items-center px-1.5 py-1 -ml-1 rounded-md hover:bg-muted/70 transition-colors group cursor-pointer"
+            title="메인 화면(Overview)으로 돌아가기"
+          >
+            <AkagiWordmark className="h-5 w-auto opacity-90 group-hover:opacity-100 transition-opacity" />
+          </Link>
+          <span className="h-3.5 w-px bg-border/80 mx-0.5 hidden sm:inline-block" />
+          <span className="font-bold text-xs text-foreground/80 tracking-tight flex items-center gap-1.5 whitespace-nowrap">
+            <Gamepad2 className="h-3.5 w-3.5 text-primary" />
             작혼 플레이
           </span>
         </div>
@@ -882,6 +982,47 @@ export function PlayClient() {
 
                 {/* Main Lobby Strategy View */}
                 <div className="space-y-2.5">
+                  {/* 화면 상태 실시간 감지 섹션 (디버그 창) */}
+                  <div className="p-2 rounded-lg bg-muted/50 border border-border/60 space-y-1.5 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-[11px] text-foreground flex items-center gap-1.5">
+                        <Scan className="h-3.5 w-3.5 text-emerald-400" />
+                        작혼 화면 상태 실시간 감지
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={isCheckingScreen}
+                        className="h-6 text-[10px] px-2 text-emerald-400 hover:text-emerald-300 border-emerald-500/40 bg-emerald-500/10"
+                        onClick={() => void checkScreenState()}
+                      >
+                        {isCheckingScreen ? (
+                          <>
+                            <RefreshCw className="h-3 w-3 animate-spin mr-1" />
+                            감지 중...
+                          </>
+                        ) : (
+                          '감지 실행'
+                        )}
+                      </Button>
+                    </div>
+                    {screenCheckResult && (
+                      <div className="p-1.5 rounded bg-zinc-950/70 border border-border/50 text-center text-[10px]">
+                        <span className="text-muted-foreground mr-1.5">결과:</span>
+                        <span className={`font-bold ${
+                          screenCheckResult.includes('로비')
+                            ? 'text-sky-400'
+                            : screenCheckResult.includes('정산') || screenCheckResult.includes('결과')
+                            ? 'text-amber-400'
+                            : screenCheckResult.includes('대국')
+                            ? 'text-emerald-400'
+                            : 'text-rose-400'
+                        }`}>
+                          {screenCheckResult}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                     {/* Quick 1-Click Action Buttons for Lobby */}
                     <div className="grid grid-cols-4 gap-1">
                       <Button
@@ -1189,6 +1330,136 @@ export function PlayClient() {
                 )}
               </div>
 
+              {/* 2. 실시간 대국 요약 & 4인 점수 미니 보드 */}
+              <div className="p-3 rounded-lg border border-border/70 bg-background/50 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 font-bold text-xs text-foreground">
+                    <Trophy className="h-3.5 w-3.5 text-amber-400" />
+                    <span>실시간 대국 요약</span>
+                  </div>
+                  {liveMatchInfo ? (
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                      {liveMatchInfo.title}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-muted-foreground">대국 대기 중</span>
+                  )}
+                </div>
+
+                {liveMatchInfo ? (
+                  <div className="space-y-1.5 pt-0.5">
+                    <div className="flex items-center justify-between text-[11px] px-1.5 py-0.5 rounded bg-muted/40 font-semibold">
+                      <span className="flex items-center gap-1 text-primary">
+                        <span>내 순위:</span>
+                        <span className="text-foreground font-black text-xs">{liveMatchInfo.myRank}위</span>
+                        {liveMatchInfo.myRank > 1 && (
+                          <span className="text-[10px] text-muted-foreground font-normal">
+                            (-{liveMatchInfo.diffWithFirst.toLocaleString()})
+                          </span>
+                        )}
+                      </span>
+                      {liveMatchInfo.shantenDesc && (
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${
+                          liveMatchInfo.shantenDesc === '텐파이'
+                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30 animate-pulse'
+                            : 'bg-primary/10 text-primary'
+                        }`}>
+                          {liveMatchInfo.shantenDesc}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="space-y-1 font-mono text-[11px]">
+                      {liveMatchInfo.players.map((p) => {
+                        const seatName = ['동', '남', '서', '북'][p.seat] ?? p.seat
+                        return (
+                          <div
+                            key={p.seat}
+                            className={`flex items-center justify-between px-2 py-1 rounded text-[11px] ${
+                              p.isUs
+                                ? 'bg-primary/15 border border-primary/40 font-bold text-foreground'
+                                : 'bg-zinc-950/40 text-foreground/80'
+                            }`}
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] w-4 text-center text-muted-foreground">{p.rank}위</span>
+                              <span className="text-[10px] px-1 rounded bg-muted text-muted-foreground font-sans">
+                                {seatName}
+                              </span>
+                              <span>{p.isUs ? '나 (내 자리)' : `플레이어 ${p.seat + 1}`}</span>
+                              {p.riichi && (
+                                <span className="text-[9px] px-1 rounded bg-rose-500 text-white font-sans font-bold">
+                                  리치
+                                </span>
+                              )}
+                            </div>
+                            <span className="font-semibold">{p.score.toLocaleString()}점</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-2.5 text-center text-muted-foreground/70 text-[11px]">
+                    대국이 시작되면 실시간 국/점수/순위가 표시됩니다
+                  </div>
+                )}
+              </div>
+
+              {/* 3. 오늘 세션 전적 & 승률 요약 */}
+              <div className="p-3 rounded-lg border border-border/70 bg-background/50 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 font-bold text-xs text-foreground">
+                    <Activity className="h-3.5 w-3.5 text-sky-400" />
+                    <span>오늘 세션 전적</span>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground">
+                    총 {sessionStats.total}전 ({autoQueueStatus.current_matches > 0 ? `오토큐 ${autoQueueStatus.current_matches}판` : '기록'})
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-4 gap-1 text-center font-mono text-[10px]">
+                  <div className="p-1 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                    <div className="text-[9px] font-sans text-muted-foreground">1위</div>
+                    <div className="font-bold text-xs">{sessionStats.ranks[0]}회</div>
+                  </div>
+                  <div className="p-1 rounded bg-sky-500/10 border border-sky-500/20 text-sky-400">
+                    <div className="text-[9px] font-sans text-muted-foreground">2위</div>
+                    <div className="font-bold text-xs">{sessionStats.ranks[1]}회</div>
+                  </div>
+                  <div className="p-1 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400">
+                    <div className="text-[9px] font-sans text-muted-foreground">3위</div>
+                    <div className="font-bold text-xs">{sessionStats.ranks[2]}회</div>
+                  </div>
+                  <div className="p-1 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400">
+                    <div className="text-[9px] font-sans text-muted-foreground">4위</div>
+                    <div className="font-bold text-xs">{sessionStats.ranks[3]}회</div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-[11px] pt-0.5 text-muted-foreground">
+                  <span>1·2위 연대율:</span>
+                  <span className="font-bold text-foreground">
+                    {sessionStats.rentai}%
+                  </span>
+                </div>
+              </div>
+
+              {/* 4. AI 엔진 상태 요약 */}
+              <div className="px-3 py-2 rounded-lg border border-border/70 bg-background/50 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2">
+                  <span className={`h-2 w-2 rounded-full ${botInfo.isRunning ? 'bg-emerald-400 animate-pulse' : 'bg-zinc-500'}`} />
+                  <span className="font-bold text-foreground">{botInfo.name}</span>
+                </div>
+                <div className="text-[10px] text-muted-foreground">
+                  {botInfo.isRunning ? (
+                    <span className="text-emerald-400 font-semibold">실시간 분석 작동 중</span>
+                  ) : (
+                    <span>상태: {botInfo.state}</span>
+                  )}
+                </div>
+              </div>
+
               {/* 2. Auto Queue Status Card */}
               <div className="p-3 rounded-lg border border-border/70 bg-background/50 space-y-2.5">
                 <div className="flex items-center justify-between">
@@ -1310,46 +1581,7 @@ export function PlayClient() {
                   )}
                 </div>
 
-                {/* 화면 상태 감지 버튼 & 결과 표시 */}
-                <div className="pt-1 border-t border-border/40 space-y-1.5">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={isCheckingScreen}
-                    className="w-full h-7 text-[11px] font-medium text-emerald-400 hover:text-emerald-300 border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                    onClick={() => void checkScreenState()}
-                    title="현재 작혼 화면 상태(로비 / 정산 / 대국 중) 감지 및 로그 기록"
-                  >
-                    {isCheckingScreen ? (
-                      <>
-                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                        화면 상태 분석 중...
-                      </>
-                    ) : (
-                      <>
-                        <Scan className="h-3.5 w-3.5" />
-                        현재 화면 상태 감지
-                      </>
-                    )}
-                  </Button>
 
-                  {screenCheckResult && (
-                    <div className="p-2 rounded bg-muted/70 border border-border/60 text-center animate-in fade-in zoom-in-95 duration-150">
-                      <span className="text-[10px] text-muted-foreground block mb-0.5">최근 화면 감지 결과</span>
-                      <span className={`text-[11px] font-bold block ${
-                        screenCheckResult.includes('로비')
-                          ? 'text-sky-400'
-                          : screenCheckResult.includes('정산') || screenCheckResult.includes('결과')
-                          ? 'text-amber-400'
-                          : screenCheckResult.includes('대국')
-                          ? 'text-emerald-400'
-                          : 'text-rose-400'
-                      }`}>
-                        {screenCheckResult}
-                      </span>
-                    </div>
-                  )}
-                </div>
               </div>
 
               {/* 2. Realtime Logs & Notifications Feed */}

@@ -111,6 +111,12 @@ pub async fn auto_queue_watcher(
                 }
                 MjaiEvent::EndGame { .. } => {
                     crate::bridge::majsoul::record_game_end();
+                    {
+                        let mut st = status.write().await;
+                        st.state = "idle".into();
+                        st.wait_seconds_left = None;
+                        let _ = status_bus.send(st.clone());
+                    }
 
                     let aq = {
                         let guard = cfg.read().await;
@@ -183,220 +189,65 @@ pub async fn auto_queue_watcher(
                         continue;
                     }
 
-                    // -------------------------------------------------------------
-                    // Strategy 1: "lobby" (Exit to lobby, then click rank match)
-                    // -------------------------------------------------------------
-                    if aq.strategy != "rematch" {
-                        let confirm_delay =
-                            Duration::from_millis(aq.lobby_confirm_delay_ms.max(500) as u64);
-
-                        let mut aborted = false;
-
-                        // 정산 화면을 넘기기 위한 확인 클릭 루프
-                        let required_confirms = aq.confirm_clicks.clamp(1, 10);
-
-                        for click_idx in 1..=required_confirms {
-                            if !cfg.read().await.autoplay.auto_queue.enabled {
-                                aborted = true;
-                                break;
-                            }
-
-                            // 로비 패킷 수신으로 이미 메인 로비에 복귀한 것이 감지되면 즉시 확인 클릭 중단
-                            if !crate::bridge::majsoul::is_settling() {
-                                info!(
-                                    "auto_queue: 메인 로비 복귀 감지됨 (is_settling=false) -> 확인 클릭({}회 완료 후) 조기 종료",
-                                    click_idx.saturating_sub(1)
-                                );
-                                break;
-                            }
-
-                            let label = format!("확인/로비탈출 ({click_idx}/{required_confirms})");
-                            info!(
-                                "auto_queue: clicking confirm ({click_idx}/{required_confirms}) at ({:.2}, {:.2})",
-                                aq.confirm_x, aq.confirm_y
-                            );
-                            if let Err(e) = execute_click_with_indicator(
-                                &ctx,
-                                aq.confirm_x,
-                                aq.confirm_y,
-                                &label,
-                                aq.show_click_indicator,
-                            )
-                            .await
-                            {
-                                warn!("auto_queue: confirm click failed: {e}");
-                            }
-
-                            tokio::time::sleep(confirm_delay).await;
-
-                            // 클릭 후 로비 복귀 확인
-                            if !crate::bridge::majsoul::is_settling() {
-                                info!(
-                                    "auto_queue: 메인 로비 복귀 감지됨 (is_settling=false) -> 확인 클릭({click_idx}회 완료 후) 조기 종료"
-                                );
-                                break;
-                            }
-                        }
-
-                        if aborted {
-                            reset_status(&status, &status_bus).await;
-                            continue;
-                        }
-
-                        // 정산 완료 공식 확정 -> 메인 로비 상태
-                        crate::bridge::majsoul::record_settlement_finished();
-                        info!("auto_queue: 정산 화면 확인 클릭 완료 -> 메인 로비 상태로 전환");
-
-                        // 로비 최종 도달 안정화 대기
-                        tokio::time::sleep(Duration::from_millis(1500)).await;
-
-                        // 휴식 딜레이 카운트다운
-                        let min_sec = aq.min_delay_sec.max(2);
-                        let max_sec = aq.max_delay_sec.max(min_sec);
-                        let delay_sec = rand::rng().random_range(min_sec..=max_sec);
-
-                        let _ = notify.send(Notification {
-                            level: NotifyLevel::Info,
-                            title: "자동 다음 대국 대기".into(),
-                            body: Some(format!(
-                                "{delay_sec}초 후 로비에서 단위전 매칭을 시작합니다. ({progress_str})"
-                            )),
-                            sticky: false,
-                            id: Some("auto-queue-waiting".into()),
-                        });
-
-                        let mut cancelled = false;
-                        for sec_left in (1..=delay_sec).rev() {
-                            {
-                                let mut st = status.write().await;
-                                st.state = "waiting".into();
-                                st.wait_seconds_left = Some(sec_left);
-                                let _ = status_bus.send(st.clone());
-                            }
-
-                            tokio::select! {
-                                _ = tokio::time::sleep(Duration::from_secs(1)) => {
-                                    let cur_enabled = cfg.read().await.autoplay.auto_queue.enabled;
-                                    if !cur_enabled {
-                                        info!("auto_queue: disabled by user during countdown");
-                                        cancelled = true;
-                                        break;
-                                    }
-                                }
-                                msg = rx.recv() => match msg {
-                                    Ok(MjaiEvent::StartGame { .. }) => {
-                                        info!("auto_queue: new game already started during countdown");
-                                        cancelled = true;
-                                        break;
-                                    }
-                                    Ok(_) | Err(RecvError::Lagged(_)) => {}
-                                    Err(RecvError::Closed) => return,
-                                }
-                            }
-                        }
-
-                        if cancelled {
-                            reset_status(&status, &status_bus).await;
-                            continue;
-                        }
-
-                        // 로비 단위전 순차 클릭 네비게이션
-                        {
-                            let mut st = status.write().await;
-                            st.state = "queuing".into();
-                            st.wait_seconds_left = None;
-                            let _ = status_bus.send(st.clone());
-                        }
-
-                        let step_delay =
-                            Duration::from_millis(aq.lobby_step_delay_ms.max(500) as u64);
-
-                        // 1. [단위전] 클릭 (11.5, 2.8)
-                        info!(
-                            "auto_queue: clicking [단위전] button at ({:.2}, {:.2})",
-                            aq.rank_match_x, aq.rank_match_y
-                        );
-                        let _ = execute_click_with_indicator(
-                            &ctx,
-                            aq.rank_match_x,
-                            aq.rank_match_y,
-                            "1. 단위전",
-                            aq.show_click_indicator,
-                        )
-                        .await;
-                        tokio::time::sleep(step_delay).await;
-
-                        // 2. [은탁] 카드 클릭 (11.5, 4.6)
-                        info!(
-                            "auto_queue: clicking [은탁] card at ({:.2}, {:.2})",
-                            aq.room_card_x, aq.room_card_y
-                        );
-                        let _ = execute_click_with_indicator(
-                            &ctx,
-                            aq.room_card_x,
-                            aq.room_card_y,
-                            "2. 은탁",
-                            aq.show_click_indicator,
-                        )
-                        .await;
-                        tokio::time::sleep(step_delay).await;
-
-                        // 3. [4인 반장전] 버튼 클릭 (은탁과 위치 동일: 11.5, 4.6)
-                        info!(
-                            "auto_queue: clicking [4인 반장전] button at ({:.2}, {:.2})",
-                            aq.round_type_x, aq.round_type_y
-                        );
-                        let res = execute_click_with_indicator(
-                            &ctx,
-                            aq.round_type_x,
-                            aq.round_type_y,
-                            "3. 4인 반장전",
-                            aq.show_click_indicator,
-                        )
-                        .await;
-
-                        if res.is_ok() {
-                            let _ = notify.send(Notification {
-                                level: NotifyLevel::Info,
-                                title: "다음 대국 매칭 시작".into(),
-                                body: Some(format!("은탁 반장전 대국을 검색 중입니다. ({progress_str})")),
-                                sticky: false,
-                                id: Some("auto-queue-matched".into()),
-                            });
-                        }
-
-                        reset_status(&status, &status_bus).await;
-                        continue;
-                    }
-
-                    // -------------------------------------------------------------
-                    // Strategy 2: "rematch" (Legacy: Click rematch on settlement screen)
-                    // -------------------------------------------------------------
-                    let confirm_clicks = aq.confirm_clicks.clamp(1, 10);
-                    let confirm_delay = Duration::from_millis(aq.confirm_delay_ms.max(500) as u64);
+                    // 메인 로비 복귀 확인 클릭 루프 (로비 진입 패킷이 감지될 때까지 주기적 클릭)
+                    let confirm_delay =
+                        Duration::from_millis(aq.lobby_confirm_delay_ms.max(500) as u64);
 
                     let mut aborted = false;
-                    for step_idx in 1..=confirm_clicks {
+                    let max_confirms: u32 = 10;
+                    let mut reached_lobby = false;
+
+                    for click_idx in 1..=max_confirms {
                         if !cfg.read().await.autoplay.auto_queue.enabled {
                             aborted = true;
                             break;
                         }
 
-                        let label = format!("확인 ({step_idx}/{confirm_clicks})");
+                        // 로비 패킷 수신으로 이미 메인 로비에 복귀한 것이 감지되면 즉시 확인 클릭 중단
+                        if !crate::bridge::majsoul::is_settling() {
+                            info!(
+                                "auto_queue: 메인 로비 복귀 감지됨 (is_settling=false) -> 확인 클릭({}회 완료 후) 즉시 종료",
+                                click_idx.saturating_sub(1)
+                            );
+                            reached_lobby = true;
+                            break;
+                        }
+
+                        let label = format!("확인/로비탈출 ({click_idx})");
                         info!(
-                            "auto_queue: clicking confirm ({step_idx}/{confirm_clicks}) at ({:.2}, {:.2})",
+                            "auto_queue: clicking confirm ({click_idx}) at ({:.2}, {:.2})",
                             aq.confirm_x, aq.confirm_y
                         );
-                        let _ = execute_click_with_indicator(
+                        crate::bridge::majsoul::emit_packet_event(
+                            format!("ConfirmClick ({click_idx})"),
+                            "CLICK",
+                            "Local",
+                            true,
+                            false,
+                            Some(format!("정산 확인 클릭 실행 ({click_idx})")),
+                        );
+                        if let Err(e) = execute_click_with_indicator(
                             &ctx,
                             aq.confirm_x,
                             aq.confirm_y,
                             &label,
                             aq.show_click_indicator,
                         )
-                        .await;
+                        .await
+                        {
+                            warn!("auto_queue: confirm click failed: {e}");
+                        }
 
                         tokio::time::sleep(confirm_delay).await;
+
+                        // 클릭 후 로비 복귀 확인
+                        if !crate::bridge::majsoul::is_settling() {
+                            info!(
+                                "auto_queue: 메인 로비 복귀 감지됨 (is_settling=false) -> 확인 클릭({click_idx}회 완료 후) 즉시 종료"
+                            );
+                            reached_lobby = true;
+                            break;
+                        }
                     }
 
                     if aborted {
@@ -404,14 +255,12 @@ pub async fn auto_queue_watcher(
                         continue;
                     }
 
-                    let rematch_prep_delay =
-                        Duration::from_millis(aq.rematch_delay_ms.max(500) as u64);
-                    tokio::time::sleep(rematch_prep_delay).await;
-                    if !cfg.read().await.autoplay.auto_queue.enabled {
-                        reset_status(&status, &status_bus).await;
-                        continue;
-                    }
+                    info!("auto_queue: 메인 로비 진입 확정 (reached_lobby={reached_lobby}) -> 단위전 매칭 시퀀스 준비");
 
+                    // 로비 최종 도달 안정화 대기
+                    tokio::time::sleep(Duration::from_millis(1500)).await;
+
+                    // 휴식 딜레이 카운트다운
                     let min_sec = aq.min_delay_sec.max(2);
                     let max_sec = aq.max_delay_sec.max(min_sec);
                     let delay_sec = rand::rng().random_range(min_sec..=max_sec);
@@ -419,7 +268,9 @@ pub async fn auto_queue_watcher(
                     let _ = notify.send(Notification {
                         level: NotifyLevel::Info,
                         title: "자동 다음 대국 대기".into(),
-                        body: Some(format!("{delay_sec}초 후 다음 대국을 찾습니다. ({progress_str})")),
+                        body: Some(format!(
+                            "{delay_sec}초 후 로비에서 단위전 매칭을 시작합니다. ({progress_str})"
+                        )),
                         sticky: false,
                         id: Some("auto-queue-waiting".into()),
                     });
@@ -435,13 +286,16 @@ pub async fn auto_queue_watcher(
 
                         tokio::select! {
                             _ = tokio::time::sleep(Duration::from_secs(1)) => {
-                                if !cfg.read().await.autoplay.auto_queue.enabled {
+                                let cur_enabled = cfg.read().await.autoplay.auto_queue.enabled;
+                                if !cur_enabled {
+                                    info!("auto_queue: disabled by user during countdown");
                                     cancelled = true;
                                     break;
                                 }
                             }
                             msg = rx.recv() => match msg {
                                 Ok(MjaiEvent::StartGame { .. }) => {
+                                    info!("auto_queue: new game already started during countdown");
                                     cancelled = true;
                                     break;
                                 }
@@ -456,7 +310,7 @@ pub async fn auto_queue_watcher(
                         continue;
                     }
 
-                    // Click "한번더"
+                    // 로비 단위전 순차 클릭 네비게이션
                     {
                         let mut st = status.write().await;
                         st.state = "queuing".into();
@@ -464,28 +318,49 @@ pub async fn auto_queue_watcher(
                         let _ = status_bus.send(st.clone());
                     }
 
+                    let step_delay =
+                        Duration::from_millis(aq.lobby_step_delay_ms.max(500) as u64);
+
+                    // 1. [단위전] 클릭 (11.5, 2.8)
+                    info!(
+                        "auto_queue: clicking [단위전] button at ({:.2}, {:.2})",
+                        aq.rank_match_x, aq.rank_match_y
+                    );
                     let _ = execute_click_with_indicator(
                         &ctx,
-                        aq.rematch_x,
-                        aq.rematch_y,
-                        "한번더 (재전)",
+                        aq.rank_match_x,
+                        aq.rank_match_y,
+                        "1. 단위전",
                         aq.show_click_indicator,
                     )
                     .await;
+                    tokio::time::sleep(step_delay).await;
 
-                    let modal_delay = Duration::from_millis(aq.modal_delay_ms.max(500) as u64);
-                    tokio::time::sleep(modal_delay).await;
-                    if !cfg.read().await.autoplay.auto_queue.enabled {
-                        reset_status(&status, &status_bus).await;
-                        continue;
-                    }
+                    // 2. [은탁] 카드 클릭 (11.5, 4.6)
+                    info!(
+                        "auto_queue: clicking [은탁] card at ({:.2}, {:.2})",
+                        aq.room_card_x, aq.room_card_y
+                    );
+                    let _ = execute_click_with_indicator(
+                        &ctx,
+                        aq.room_card_x,
+                        aq.room_card_y,
+                        "2. 은탁",
+                        aq.show_click_indicator,
+                    )
+                    .await;
+                    tokio::time::sleep(step_delay).await;
 
-                    // Click "네"
+                    // 3. [4인 반장전] 버튼 클릭 (은탁과 위치 동일: 11.5, 4.6)
+                    info!(
+                        "auto_queue: clicking [4인 반장전] button at ({:.2}, {:.2})",
+                        aq.round_type_x, aq.round_type_y
+                    );
                     let res = execute_click_with_indicator(
                         &ctx,
-                        aq.modal_yes_x,
-                        aq.modal_yes_y,
-                        "네 (확인)",
+                        aq.round_type_x,
+                        aq.round_type_y,
+                        "3. 4인 반장전",
                         aq.show_click_indicator,
                     )
                     .await;
@@ -494,7 +369,7 @@ pub async fn auto_queue_watcher(
                         let _ = notify.send(Notification {
                             level: NotifyLevel::Info,
                             title: "다음 대국 매칭 시작".into(),
-                            body: Some(format!("새 대국을 검색 중입니다. ({progress_str})")),
+                            body: Some(format!("은탁 반장전 대국을 검색 중입니다. ({progress_str})")),
                             sticky: false,
                             id: Some("auto-queue-matched".into()),
                         });

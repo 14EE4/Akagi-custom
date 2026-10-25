@@ -203,7 +203,16 @@ export function PlayClient() {
       agariRate: w.agari_rate,
     }))
 
-    const yakuList = (targetHand13.yaku_ids ?? []).map((id) => getYakuName(id))
+    const allYaku = (targetHand13.yaku_ids ?? []).map((id) => ({
+      id,
+      name: getYakuName(id),
+      isDora: id >= 31 && id <= 34,
+      isRiichi: id === 2 || id === 18,
+    }))
+
+    const normalYaku = allYaku.filter((y) => !y.isDora && !y.isRiichi).map((y) => y.name)
+    const doraYaku = allYaku.filter((y) => y.isDora).map((y) => y.name)
+    const hasRiichiOpt = allYaku.some((y) => y.isRiichi)
 
     const damaPt = Math.round(targetHand13.dama_point)
     const riichiPt = Math.round(targetHand13.riichi_point)
@@ -213,7 +222,9 @@ export function PlayClient() {
     return {
       waits: waitsList,
       waitsTotal: targetHand13.waits_total,
-      yakuList,
+      normalYaku,
+      doraYaku,
+      hasRiichiOpt,
       damaPt,
       riichiPt,
       damaHan,
@@ -1445,18 +1456,31 @@ export function PlayClient() {
                   </div>
 
                   {/* 2. 성립 역 목록 */}
-                  {tenpaiInfo.yakuList.length > 0 && (
+                  {(tenpaiInfo.normalYaku.length > 0 || tenpaiInfo.doraYaku.length > 0) && (
                     <div className="space-y-1 pt-0.5">
                       <span className="text-[10px] text-muted-foreground block font-medium">성립 역:</span>
                       <div className="flex flex-wrap gap-1">
-                        {tenpaiInfo.yakuList.map((yaku, idx) => (
+                        {tenpaiInfo.normalYaku.map((yaku, idx) => (
                           <span
                             key={idx}
-                            className="text-[10px] px-1.5 py-0.2 rounded bg-muted/70 text-foreground/90 border border-border/60 font-semibold"
+                            className="text-[10px] px-1.5 py-0.2 rounded bg-muted/80 text-foreground font-semibold border border-border/60"
                           >
                             {yaku}
                           </span>
                         ))}
+                        {tenpaiInfo.doraYaku.map((dora, idx) => (
+                          <span
+                            key={idx}
+                            className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40"
+                          >
+                            {dora}
+                          </span>
+                        ))}
+                        {tenpaiInfo.hasRiichiOpt && (
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-sky-500/15 text-sky-300 font-medium border border-sky-500/30">
+                            +리치 가능
+                          </span>
+                        )}
                       </div>
                     </div>
                   )}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AkagiIcon, AkagiWordmark } from '@/components/BrandLogo'
+import { AkagiWordmark } from '@/components/BrandLogo'
 import {
   ArrowLeftRight,
   Bot,
@@ -514,11 +514,10 @@ export function PlayClient() {
         <div className="flex items-center gap-2 min-w-0">
           <Link
             to="/"
-            className="flex items-center gap-2 px-1.5 py-1 -ml-1 rounded-md hover:bg-muted/70 transition-colors group cursor-pointer"
+            className="flex items-center px-1.5 py-1 -ml-1 rounded-md hover:bg-muted/70 transition-colors group cursor-pointer"
             title="메인 화면(Overview)으로 돌아가기"
           >
-            <AkagiIcon className="h-5 w-auto" />
-            <AkagiWordmark className="h-4.5 w-auto hidden sm:inline-block opacity-90 group-hover:opacity-100 transition-opacity" />
+            <AkagiWordmark className="h-5 w-auto opacity-90 group-hover:opacity-100 transition-opacity" />
           </Link>
           <span className="h-3.5 w-px bg-border/80 mx-0.5 hidden sm:inline-block" />
           <span className="font-bold text-xs text-foreground/80 tracking-tight flex items-center gap-1.5 whitespace-nowrap">

@@ -79,60 +79,35 @@
 
 ---
 
-## 2. 노트북 동기화 방법 (main 브랜치)
+## 2. 다운로드 및 시작하기 (Quick Start)
 
-빌드 완료된 `akagi.exe`와 `mjai_bot/mortal` 스크립트(Windows용 `libriichi` `.pyd` 포함)가 레포지토리에 포함되어 있으므로, 노트북에서는 별도 빌드 없이 `git pull`만으로 동기화할 수 있습니다 (`mortal.pth` 가중치 파일만 `mjai_bot/mortal/mortal.pth`에 위치하면 됩니다).
-
-### 최초 1회 설정 (노트북 아카기 폴더)
-```powershell
-# 기존에 .git이 없는 일반 폴더인 경우:
-git init
-git remote add origin https://github.com/14EE4/Akagi-custom.git
-
-# 이미 .git이 있는 폴더인 경우:
-git remote set-url origin https://github.com/14EE4/Akagi-custom.git
-
-# main 브랜치 받아오기 (mortal.pth, configs/, chrome-profile/ 등은 유지됨):
-git fetch origin
-git checkout -f -B main origin/main
-```
-
-### 최초 1회: Python 런타임(`runtime/`) 준비
-
-`runtime/python`, `runtime/uv`(번들 Python + uv)는 `.gitignore`(`runtime/*`)로 제외되어 있어 `git clone` / `git pull`로는 받아지지 않습니다. 비어 있으면 아카기 **Bots 탭의 Python 환경 설치가 실패**합니다 (번들 런타임이 없으면 시스템 PATH의 `python3`/`uv`를 찾는데, 없으면 설치 불가).
-
-아래 둘 중 하나로 `akagi.exe`와 같은 폴더의 `runtime/`을 채워 주세요.
-
-```powershell
-# 방법 A: 이미 런타임이 있는 PC의 runtime 폴더를 통째로 복사
-#   → <아카기 폴더>\runtime\python\x86_64-pc-windows-msvc\python.exe
-#   → <아카기 폴더>\runtime\uv\x86_64-pc-windows-msvc\uv.exe  가 있어야 함
-
-# 방법 B: 스크립트로 내려받기 (Git Bash 또는 WSL 필요, curl/tar/unzip 사용)
-bash scripts/fetch-runtime.sh x86_64-pc-windows-msvc
-```
-
-### 이후 업데이트 시
-```powershell
-Stop-Process -Name "akagi" -Force -ErrorAction SilentlyContinue
-git pull
-```
+1. **최신 릴리즈 다운로드**:
+   - [GitHub Releases](https://github.com/14EE4/Akagi-custom/releases)에서 최신 버전의 `akagi-v...-windows-x64.zip`을 다운로드하고 원하는 폴더에 압축을 풉니다.
+2. **실행**:
+   - `akagi.exe`를 실행합니다.
+   - 처음 실행 시 별도의 복잡한 Python 환경 설정 없이도 Rust 순정 내장 모델(`built-in 4p`)이 기본 활성화되어 있어 즉시 작혼 플레이 및 AI 추천을 사용할 수 있습니다.
+3. **작혼 플레이 및 서버 선택**:
+   - 상단 헤더 또는 중앙 화면에서 접속할 서버(한섭/일섭/글섭/중섭)를 선택하고 `[작혼 브라우저 실행]`을 클릭합니다.
+   - 아카기 메인 창 내부에서 일체형으로 편안하게 플레이할 수 있으며, 필요 시 외부 독립 창으로 언제든 분리할 수 있습니다.
 
 ---
 
-## 3. 데스크톱에서 공식(`upstream/v3`) 업데이트 병합 및 빌드 방법
+## 3. Mortal 신경망 봇 사용 안내 (선택 사항)
 
-> **주의**: 앱 내 UI의 자동 업데이트 버튼을 누르면 공식 순정 `akagi.exe`가 덮어씌워져 커스텀 패치가 사라집니다. 업데이트는 반드시 아래 Git 병합 및 로컬 빌드로 진행하세요.
+더 강력한 오프라인 딥러닝 마작 AI인 **Mortal** 봇을 사용하시려면:
 
-```powershell
-git checkout main
-git pull upstream v3
-npm --prefix frontend run build
-$env:PROTOC = "C:\Users\pyeon\.gemini\antigravity-cli\brain\e09dcb65-b75c-45dc-9ccd-1b8d0157081b\scratch\protoc\bin\protoc.exe"
-Stop-Process -Name "akagi" -Force -ErrorAction SilentlyContinue
-cargo build --release --features custom-protocol
-Copy-Item -Path "target\release\akagi.exe" -Destination "akagi.exe" -Force
-git add -A
-git commit -m "chore: merge upstream/v3 and rebuild akagi.exe"
-git push origin main
-```
+1. **Python 런타임 준비**:
+   - 앱 내 **[Bots]** 탭에서 안내에 따라 Python 환경을 설치하거나, 기존의 `runtime/` 폴더를 복사하여 배치합니다.
+2. **Mortal 모델 가중치 배치**:
+   - 학습된 Mortal 가중치(`mortal.pth`) 파일을 `mjai_bot/mortal/mortal.pth` 경로에 넣어줍니다.
+3. **봇 활성화**:
+   - 아카기 **[Bots]** 탭에서 `Mortal` 봇을 활성화하면 백그라운드 사전 워밍업, 재스폰 리플레이 복구 및 고속 추론 오토플레이가 적용됩니다.
+
+---
+
+## 4. 라이선스 및 크레딧
+
+- 본 프로젝트는 [GNU General Public License v3.0 (GPL-3.0)](LICENSE.txt) 라이선스 하에 배포됩니다.
+- 오리지널 프로젝트: [shinkuan/Akagi](https://github.com/shinkuan/Akagi)
+- 리치 마작 엔진: [libriichi](https://github.com/apr3vau/libriichi)
+- 마작 신경망 AI: [Mortal](https://github.com/Equim-chan/Mortal)

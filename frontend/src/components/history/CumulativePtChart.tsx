@@ -36,19 +36,19 @@ export function CumulativePtChart({ series }: { series: CumulativePoint[] }) {
   }))
 
   return (
-    <div className="h-64 w-full">
-      <ResponsiveContainer width="100%" height="100%">
+    <div className="h-64 w-full min-w-0 min-h-[256px]">
+      <ResponsiveContainer width="100%" height={256} minWidth={0}>
         <LineChart data={data} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-          <XAxis dataKey="index" stroke="var(--color-muted-foreground)" fontSize={12} />
-          <YAxis stroke="var(--color-muted-foreground)" fontSize={12} />
-          <ReferenceLine y={0} stroke="var(--color-muted-foreground)" strokeDasharray="2 2" />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border, #3f3f46)" />
+          <XAxis dataKey="index" stroke="var(--color-muted-foreground, #a1a1aa)" fontSize={12} />
+          <YAxis stroke="var(--color-muted-foreground, #a1a1aa)" fontSize={12} />
+          <ReferenceLine y={0} stroke="var(--color-muted-foreground, #71717a)" strokeDasharray="2 2" />
           <Tooltip
             contentStyle={{
-              background: 'var(--color-popover)',
-              border: '1px solid var(--color-border)',
+              background: 'var(--color-popover, #18181b)',
+              border: '1px solid var(--color-border, #27272a)',
               borderRadius: 8,
-              color: 'var(--color-popover-foreground)',
+              color: 'var(--color-popover-foreground, #f4f4f5)',
             }}
             labelFormatter={(_label, payload) => {
               const arr = payload as
@@ -69,10 +69,10 @@ export function CumulativePtChart({ series }: { series: CumulativePoint[] }) {
           <Line
             type="monotone"
             dataKey="cumulative"
-            stroke="var(--color-chart-1)"
+            stroke="var(--color-chart-1, #38bdf8)"
             strokeWidth={2}
-            dot={{ r: 2 }}
-            activeDot={{ r: 5 }}
+            dot={{ r: 3, fill: 'var(--color-chart-1, #38bdf8)' }}
+            activeDot={{ r: 5, fill: 'var(--color-chart-1, #38bdf8)' }}
           />
         </LineChart>
       </ResponsiveContainer>

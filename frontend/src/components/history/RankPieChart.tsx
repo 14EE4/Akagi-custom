@@ -6,10 +6,10 @@ import { useTranslation } from 'react-i18next'
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 
 const COLORS = [
-  'var(--color-chart-1)',
-  'var(--color-chart-2)',
-  'var(--color-chart-3)',
-  'var(--color-chart-4)',
+  'var(--color-chart-1, #38bdf8)',
+  'var(--color-chart-2, #34d399)',
+  'var(--color-chart-3, #fbbf24)',
+  'var(--color-chart-4, #f87171)',
 ]
 
 export function RankPieChart({ counts }: { counts: number[] }) {
@@ -31,8 +31,8 @@ export function RankPieChart({ counts }: { counts: number[] }) {
   }))
 
   return (
-    <div className="h-64 w-full">
-      <ResponsiveContainer width="100%" height="100%">
+    <div className="h-64 w-full min-w-0 min-h-[256px]">
+      <ResponsiveContainer width="100%" height={256} minWidth={0}>
         <PieChart>
           <Pie
             data={data}
@@ -54,10 +54,10 @@ export function RankPieChart({ counts }: { counts: number[] }) {
           </Pie>
           <Tooltip
             contentStyle={{
-              background: 'var(--color-popover)',
-              border: '1px solid var(--color-border)',
+              background: 'var(--color-popover, #18181b)',
+              border: '1px solid var(--color-border, #27272a)',
               borderRadius: 8,
-              color: 'var(--color-popover-foreground)',
+              color: 'var(--color-popover-foreground, #f4f4f5)',
             }}
             formatter={(value, name, ctx) => {
               const pct = (ctx as unknown as { payload?: { pct?: string } })

@@ -880,3 +880,14 @@ export type ReadInspectorResponse = {
   has_more: boolean
   skipped_malformed: number
 }
+
+
+export interface MajsoulPacketEvent {
+  timestamp: string
+  method: string
+  kind: string
+  direction: string
+  is_settling: boolean
+  is_key_trigger: boolean
+  note?: string
+}

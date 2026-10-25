@@ -28,7 +28,8 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
-import { HAS_TAURI, invoke } from '@/lib/tauri'
+import { HAS_TAURI, invoke, listen } from '@/lib/tauri'
+import type { MajsoulPacketEvent } from '@/types'
 import { pickShow, visibleItems } from '@/lib/botShow'
 import { useNotifyStore } from '@/stores/notifyStore'
 import { useConfigStore } from '@/stores/configStore'
@@ -61,6 +62,7 @@ export function PlayClient() {
   const [debugLogs, setDebugLogs] = useState<string[]>([])
   const [isCheckingScreen, setIsCheckingScreen] = useState(false)
   const [screenCheckResult, setScreenCheckResult] = useState<string | null>(null)
+  const [recentPacket, setRecentPacket] = useState<MajsoulPacketEvent | null>(null)
 
   const checkScreenState = async () => {
     if (!HAS_TAURI) return
@@ -85,7 +87,7 @@ export function PlayClient() {
     min_delay_sec: 8,
     max_delay_sec: 15,
     initial_delay_ms: 30000,
-    confirm_clicks: 3,
+    confirm_clicks: 4,
     confirm_delay_ms: 5000,
     confirm_x: 13.9,
     confirm_y: 8.2,
@@ -112,8 +114,24 @@ export function PlayClient() {
 
   const appendDebugLog = (msg: string) => {
     const time = new Date().toLocaleTimeString()
-    setDebugLogs((prev) => [`[${time}] ${msg}`, ...prev.slice(0, 19)])
+    setDebugLogs((prev) => [`[${time}] ${msg}`, ...prev.slice(0, 29)])
   }
+
+  useEffect(() => {
+    if (!HAS_TAURI) return
+    let unlisten: (() => void) | undefined
+    void listen<MajsoulPacketEvent>('majsoul-packet', (ev) => {
+      setRecentPacket(ev)
+      const keyTag = ev.is_key_trigger ? ' ★' : ''
+      const noteStr = ev.note ? ` [${ev.note}]` : ''
+      appendDebugLog(`[패킷${keyTag}] ${ev.method} (${ev.direction} ${ev.kind}, 정산중:${ev.is_settling})${noteStr}`)
+    }).then((fn) => {
+      unlisten = fn
+    })
+    return () => {
+      unlisten?.()
+    }
+  }, [])
 
   const openAutoQueueDialog = () => {
     const currentAq = config?.autoplay?.auto_queue
@@ -122,7 +140,7 @@ export function PlayClient() {
       min_delay_sec: currentAq?.min_delay_sec ?? 8,
       max_delay_sec: currentAq?.max_delay_sec ?? 15,
       initial_delay_ms: currentAq?.initial_delay_ms ?? 30000,
-      confirm_clicks: currentAq?.confirm_clicks ?? 3,
+      confirm_clicks: currentAq?.confirm_clicks ?? 4,
       confirm_delay_ms: currentAq?.confirm_delay_ms ?? 5000,
       confirm_x: currentAq?.confirm_x ?? 13.9,
       confirm_y: currentAq?.confirm_y ?? 8.2,
@@ -156,7 +174,7 @@ export function PlayClient() {
       min_delay_sec: currentAq?.min_delay_sec ?? 8,
       max_delay_sec: currentAq?.max_delay_sec ?? 15,
       initial_delay_ms: currentAq?.initial_delay_ms ?? 30000,
-      confirm_clicks: currentAq?.confirm_clicks ?? 3,
+      confirm_clicks: currentAq?.confirm_clicks ?? 4,
       confirm_delay_ms: currentAq?.confirm_delay_ms ?? 5000,
       confirm_x: currentAq?.confirm_x ?? 13.9,
       confirm_y: currentAq?.confirm_y ?? 8.2,
@@ -1133,19 +1151,27 @@ export function PlayClient() {
                         <div className="flex items-center gap-1.5">
                           <Button
                             size="sm"
-                            variant={aqDraft.confirm_clicks === 2 ? 'default' : 'outline'}
-                            className="h-5 text-[10px] px-2 py-0 flex-1 font-semibold"
-                            onClick={() => setAqDraft({ ...aqDraft, confirm_clicks: 2 })}
-                          >
-                            빠른 스킵 (2회)
-                          </Button>
-                          <Button
-                            size="sm"
                             variant={aqDraft.confirm_clicks === 3 ? 'default' : 'outline'}
                             className="h-5 text-[10px] px-2 py-0 flex-1 font-semibold"
                             onClick={() => setAqDraft({ ...aqDraft, confirm_clicks: 3 })}
                           >
-                            기본 권장 (3회)
+                            3회
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={aqDraft.confirm_clicks === 4 ? 'default' : 'outline'}
+                            className="h-5 text-[10px] px-2 py-0 flex-1 font-semibold"
+                            onClick={() => setAqDraft({ ...aqDraft, confirm_clicks: 4 })}
+                          >
+                            기본 권장 (4회)
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={aqDraft.confirm_clicks === 5 ? 'default' : 'outline'}
+                            className="h-5 text-[10px] px-2 py-0 flex-1 font-semibold"
+                            onClick={() => setAqDraft({ ...aqDraft, confirm_clicks: 5 })}
+                          >
+                            여유 (5회)
                           </Button>
                           <Input
                             type="number"
@@ -1483,6 +1509,54 @@ export function PlayClient() {
                   </div>
                 )}
 
+                {/* 실시간 패킷 감지 카드 */}
+                <div className="pt-1 border-t border-border/40 space-y-1">
+                  <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground px-0.5">
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-sky-400 animate-pulse" />
+                      실시간 패킷 감지
+                    </span>
+                    {recentPacket && (
+                      <span className="text-[10px] font-mono text-zinc-400">
+                        {recentPacket.timestamp}
+                      </span>
+                    )}
+                  </div>
+                  {recentPacket ? (
+                    <div className="p-2 rounded bg-zinc-950/70 border border-border/60 space-y-1 font-mono text-[10px]">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-zinc-200 font-bold truncate" title={recentPacket.method}>
+                          {recentPacket.method.replace('.lq.Lobby.', '').replace('.lq.', '')}
+                        </span>
+                        <span className={`text-[9px] px-1 py-0.2 rounded font-sans font-semibold shrink-0 ${
+                          recentPacket.is_key_trigger
+                            ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                            : recentPacket.direction === 'Up'
+                            ? 'bg-blue-500/20 text-blue-300'
+                            : 'bg-emerald-500/20 text-emerald-300'
+                        }`}>
+                          {recentPacket.is_key_trigger ? '트리거' : `${recentPacket.direction} ${recentPacket.kind}`}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[9px] text-zinc-400">
+                        <span>
+                          정산 상태:{' '}
+                          <span className={recentPacket.is_settling ? 'text-amber-400 font-semibold' : 'text-sky-400 font-semibold'}>
+                            {recentPacket.is_settling ? '정산중 (GameEnd)' : '로비 (Lobby)'}
+                          </span>
+                        </span>
+                        {recentPacket.note && (
+                          <span className="text-zinc-300 italic truncate ml-1">{recentPacket.note}</span>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-1.5 rounded bg-muted/30 border border-border/40 text-center text-[10px] text-zinc-500">
+                      감지된 패킷 대기 중...
+                    </div>
+                  )}
+                </div>
+
                 {/* 화면 상태 감지 버튼 & 결과 표시 */}
                 <div className="pt-1 border-t border-border/40 space-y-1.5">
                   <Button
@@ -1549,7 +1623,11 @@ export function PlayClient() {
                       <div
                         key={i}
                         className={`leading-relaxed break-all ${
-                          log.includes('확인 완료') || log.includes('성공')
+                          log.includes('패킷 ★') || log.includes('트리거')
+                            ? 'text-purple-300 font-bold'
+                            : log.includes('패킷')
+                            ? 'text-sky-300'
+                            : log.includes('확인 완료') || log.includes('성공')
                             ? 'text-emerald-400'
                             : log.includes('실패') || log.includes('오류')
                             ? 'text-red-400'

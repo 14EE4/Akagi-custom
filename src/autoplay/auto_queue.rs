@@ -201,8 +201,8 @@ pub async fn auto_queue_watcher(
                                 break;
                             }
 
-                            // 로비 패킷 수신으로 이미 메인 로비에 복귀한 것이 감지되면 즉시 확인 클릭 중단
-                            if !crate::bridge::majsoul::is_settling() {
+                            // 로비 패킷 수신으로 이미 메인 로비에 복귀한 것이 감지되면(최소 3회 이상 완료 후) 확인 클릭 중단
+                            if click_idx > 3 && !crate::bridge::majsoul::is_settling() {
                                 info!(
                                     "auto_queue: 메인 로비 복귀 감지됨 (is_settling=false) -> 확인 클릭({}회 완료 후) 조기 종료",
                                     click_idx.saturating_sub(1)
@@ -229,8 +229,8 @@ pub async fn auto_queue_watcher(
 
                             tokio::time::sleep(confirm_delay).await;
 
-                            // 클릭 후 로비 복귀 확인
-                            if !crate::bridge::majsoul::is_settling() {
+                            // 클릭 후 로비 복귀 확인 (최소 3회 이상 완료 후)
+                            if click_idx >= 3 && !crate::bridge::majsoul::is_settling() {
                                 info!(
                                     "auto_queue: 메인 로비 복귀 감지됨 (is_settling=false) -> 확인 클릭({click_idx}회 완료 후) 조기 종료"
                                 );

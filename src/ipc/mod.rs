@@ -84,6 +84,11 @@ fn spawn_forwarders<R: Runtime>(app: AppHandle<R>, state: AppState) {
         state.auto_queue_status_bus.subscribe(),
         "auto-queue-status",
     );
+    forward(
+        app.clone(),
+        crate::bridge::majsoul::packet_bus().subscribe(),
+        "majsoul-packet",
+    );
 
     // Status buses: forward AND snapshot into AppState.
     spawn_bot_status_forwarder(app.clone(), state.clone());

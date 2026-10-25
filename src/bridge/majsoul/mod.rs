@@ -64,6 +64,35 @@ const CHI_PENG_GANG_PENG: u64 = 1;
 const CHI_PENG_GANG_GANG: u64 = 2;
 
 static LAST_LOBBY_PACKET_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+static MAJSOUL_PACKET_BUS: std::sync::OnceLock<tokio::sync::broadcast::Sender<crate::schema::MajsoulPacketEvent>> =
+    std::sync::OnceLock::new();
+
+pub fn packet_bus() -> &'static tokio::sync::broadcast::Sender<crate::schema::MajsoulPacketEvent> {
+    MAJSOUL_PACKET_BUS.get_or_init(|| tokio::sync::broadcast::channel(128).0)
+}
+
+pub fn emit_packet_event(
+    method: impl Into<String>,
+    kind: impl Into<String>,
+    direction: impl Into<String>,
+    is_settling: bool,
+    is_key_trigger: bool,
+    note: Option<String>,
+) {
+    let now = chrono::Local::now().format("%H:%M:%S%.3f").to_string();
+    let ev = crate::schema::MajsoulPacketEvent {
+        timestamp: now,
+        method: method.into(),
+        kind: kind.into(),
+        direction: direction.into(),
+        is_settling,
+        is_key_trigger,
+        note,
+    };
+    let _ = packet_bus().send(ev);
+}
+
 static LAST_GAME_END_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 static IS_SETTLING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
@@ -95,6 +124,14 @@ pub fn record_game_end() {
         .as_millis() as u64;
     LAST_GAME_END_MS.store(now, std::sync::atomic::Ordering::SeqCst);
     IS_SETTLING.store(true, std::sync::atomic::Ordering::SeqCst);
+    emit_packet_event(
+        METHOD_NOTIFY_GAME_END_RESULT,
+        "NOTIFY",
+        "Down",
+        true,
+        true,
+        Some("대국 종료 (정산/결과 화면 시작)".to_string()),
+    );
 }
 
 /// Marks that post-game settlement and confirmation clicks have finished,
@@ -102,6 +139,14 @@ pub fn record_game_end() {
 pub fn record_settlement_finished() {
     LAST_GAME_END_MS.store(0, std::sync::atomic::Ordering::SeqCst);
     IS_SETTLING.store(false, std::sync::atomic::Ordering::SeqCst);
+    emit_packet_event(
+        "SettlementFinished",
+        "INTERNAL",
+        "Local",
+        false,
+        true,
+        Some("메인 로비 복귀 확정 (정산 완료)".to_string()),
+    );
 }
 
 /// Returns true if currently in post-game settlement / results screen.
@@ -1594,20 +1639,19 @@ impl Bridge for MajsoulBridge {
                 );
                 if msg.method_name.starts_with(".lq.Lobby.") && !msg.method_name.ends_with(".heatbeat") {
                     record_lobby_packet();
+                    let settling_before = is_settling();
                     info!(
                         target: "akagi::bridge::majsoul",
                         "[LOBBY_PACKET] {direction:?} {kind} {} (is_settling={})",
                         msg.method_name,
-                        is_settling()
+                        settling_before
                     );
-                    // 메인 로비 진입을 나타내는 결정적 패킷: loginBeat, fetchAccountActivityData, leaveRoom, startUnifiedMatch
-                    // (정산 중 주기적으로 오가는 fetchAccountInfo, fetchRoom, logReport 등은 제외)
                     let is_main_lobby_entry = msg.method_name.ends_with(".loginBeat")
                         || msg.method_name.ends_with(".fetchAccountActivityData")
                         || msg.method_name.ends_with(".leaveRoom")
                         || msg.method_name.ends_with(".startUnifiedMatch");
 
-                    if is_main_lobby_entry && is_settling() {
+                    if is_main_lobby_entry && settling_before {
                         record_settlement_finished();
                         info!(
                             target: "akagi::bridge::majsoul",
@@ -1615,6 +1659,23 @@ impl Bridge for MajsoulBridge {
                             msg.method_name
                         );
                     }
+
+                    let note = if is_main_lobby_entry && settling_before {
+                        Some("메인 로비 전환 패킷 트리거".to_string())
+                    } else if is_main_lobby_entry {
+                        Some("메인 로비 활성 패킷".to_string())
+                    } else {
+                        None
+                    };
+
+                    emit_packet_event(
+                        msg.method_name.as_ref(),
+                        kind,
+                        direction.as_str(),
+                        is_settling(),
+                        is_main_lobby_entry,
+                        note,
+                    );
                 }
                 if let Some(log) = &self.flow_log {
                     let line = json!({
@@ -1655,18 +1716,19 @@ impl Bridge for MajsoulBridge {
                     );
                     if ready_resp.method_name.starts_with(".lq.Lobby.") && !ready_resp.method_name.ends_with(".heatbeat") {
                         record_lobby_packet();
+                        let settling_before = is_settling();
                         info!(
                             target: "akagi::bridge::majsoul",
                             "[LOBBY_PACKET] down RESPONSE {} (is_settling={})",
                             ready_resp.method_name,
-                            is_settling()
+                            settling_before
                         );
                         let is_main_lobby_entry = ready_resp.method_name.ends_with(".loginBeat")
                             || ready_resp.method_name.ends_with(".fetchAccountActivityData")
                             || ready_resp.method_name.ends_with(".leaveRoom")
                             || ready_resp.method_name.ends_with(".startUnifiedMatch");
 
-                        if is_main_lobby_entry && is_settling() {
+                        if is_main_lobby_entry && settling_before {
                             record_settlement_finished();
                             info!(
                                 target: "akagi::bridge::majsoul",
@@ -1674,6 +1736,23 @@ impl Bridge for MajsoulBridge {
                                 ready_resp.method_name
                             );
                         }
+
+                        let note = if is_main_lobby_entry && settling_before {
+                            Some("메인 로비 전환 응답 트리거".to_string())
+                        } else if is_main_lobby_entry {
+                            Some("메인 로비 활성 응답".to_string())
+                        } else {
+                            None
+                        };
+
+                        emit_packet_event(
+                            ready_resp.method_name.as_ref(),
+                            "RESPONSE",
+                            "Down",
+                            is_settling(),
+                            is_main_lobby_entry,
+                            note,
+                        );
                     }
                     if let Some(log) = &self.flow_log {
                         let line = json!({

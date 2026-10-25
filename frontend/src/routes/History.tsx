@@ -99,23 +99,23 @@ export function History() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card>
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle className="text-sm uppercase tracking-wider">
               {t('history.rank_distribution')}
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="min-w-0">
             <RankPieChart counts={pieCounts} />
           </CardContent>
         </Card>
-        <Card className="lg:col-span-2">
+        <Card className="lg:col-span-2 min-w-0">
           <CardHeader>
             <CardTitle className="text-sm uppercase tracking-wider">
               {t('history.cumulative_pt')}
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="min-w-0">
             <CumulativePtChart series={series} />
           </CardContent>
         </Card>

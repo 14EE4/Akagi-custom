@@ -98,6 +98,12 @@ pub struct Hand13Result {
     pub dama_point: f64,
     /// Estimated ron point under riichi (closed hands only; 0 if open).
     pub riichi_point: f64,
+    /// Estimated han at damaten.
+    #[serde(default)]
+    pub dama_han: u32,
+    /// Estimated han under riichi.
+    #[serde(default)]
+    pub riichi_han: u32,
     /// `agari_rate% * (best_point + 1500) - 1500`. Per-round expected delta.
     pub mixed_round_point: f64,
     /// Yaku ids encountered across waits (riichienv yaku ids).

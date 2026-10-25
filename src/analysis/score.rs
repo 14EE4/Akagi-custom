@@ -22,6 +22,10 @@ pub struct ScoreEstimate {
     pub dama_point: f64,
     /// Average riichi ron point. Zero if the hand is open.
     pub riichi_point: f64,
+    /// Maximum/typical han at dama ron.
+    pub dama_han: u32,
+    /// Maximum/typical han at riichi ron.
+    pub riichi_han: u32,
     /// Yaku ids encountered across all waits (union, deduplicated).
     pub yaku_ids: Vec<u32>,
     /// Whether at least one wait produces a valid (≥1 han) winning hand.
@@ -140,6 +144,8 @@ pub fn expectation(info: &PlayerInfo34, waits: &Waits, allow_riichi: bool) -> Sc
 
     let mut sum_dama = 0.0f64;
     let mut sum_riichi = 0.0f64;
+    let mut max_dama_han = 0u32;
+    let mut max_riichi_han = 0u32;
     let mut total_w = 0u32;
     let mut yaku_set: std::collections::BTreeSet<u32> = Default::default();
     let mut has_yaku = false;
@@ -186,6 +192,7 @@ pub fn expectation(info: &PlayerInfo34, waits: &Waits, allow_riichi: bool) -> Sc
             );
             if res_riichi.is_win {
                 riichi_pt = res_riichi.ron_agari as f64;
+                max_riichi_han = max_riichi_han.max(res_riichi.han as u32);
                 for y in &res_riichi.yaku {
                     yaku_set.insert(*y);
                 }
@@ -194,6 +201,7 @@ pub fn expectation(info: &PlayerInfo34, waits: &Waits, allow_riichi: bool) -> Sc
         }
 
         if res_dama.is_win {
+            max_dama_han = max_dama_han.max(res_dama.han as u32);
             for y in &res_dama.yaku {
                 yaku_set.insert(*y);
             }
@@ -213,6 +221,8 @@ pub fn expectation(info: &PlayerInfo34, waits: &Waits, allow_riichi: bool) -> Sc
     ScoreEstimate {
         dama_point: sum_dama / total_w as f64,
         riichi_point: sum_riichi / total_w as f64,
+        dama_han: max_dama_han,
+        riichi_han: max_riichi_han,
         yaku_ids: yaku_set.into_iter().collect(),
         has_yaku,
     }

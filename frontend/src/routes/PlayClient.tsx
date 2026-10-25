@@ -6,6 +6,7 @@ import {
   ArrowLeftRight,
   Bot,
   Crosshair,
+  Flame,
   ExternalLink,
   Gamepad2,
   Globe,
@@ -18,6 +19,8 @@ import {
   Square,
   RefreshCw,
   RotateCcw,
+  ShieldAlert,
+  ShieldCheck,
   Trophy,
   Scan,
   Settings2,
@@ -33,7 +36,9 @@ import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { HAS_TAURI, invoke, listen } from '@/lib/tauri'
-import type { MajsoulPacketEvent } from '@/types'
+import type { MajsoulPacketEvent, Hand13Result } from '@/types'
+import { getYakuName } from '@/lib/yakuNames'
+import { tileIdx } from '@/lib/tileIdx'
 import { pickShow, visibleItems } from '@/lib/botShow'
 import { useNotifyStore } from '@/stores/notifyStore'
 import { useConfigStore } from '@/stores/configStore'
@@ -45,6 +50,52 @@ import { useGameStore } from '@/stores/gameStore'
 import { useAnalysisStore } from '@/stores/analysisStore'
 import { useHistoryStore } from '@/stores/historyStore'
 import { useBotStore } from '@/stores/botStore'
+
+function tileKorean(t: string): string {
+  const suits: Record<string, string> = { m: '만', p: '통', s: '삭' }
+  const honors: Record<string, string> = {
+    E: '동',
+    S: '남',
+    W: '서',
+    N: '북',
+    P: '백',
+    F: '발',
+    C: '중',
+  }
+  if (honors[t]) return honors[t]
+  if (t.endsWith('r')) {
+    const s = t[t.length - 2]
+    return `적${t[0]}${suits[s] ?? s}`
+  }
+  const s = t[t.length - 1]
+  if (suits[s]) return `${t.slice(0, -1)}${suits[s]}`
+  return t
+}
+
+function getRiskBadgeStyle(risk: number): { bg: string; label: string } {
+  if (risk === 0) {
+    return {
+      bg: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+      label: '현물 (안전)',
+    }
+  }
+  if (risk <= 4.0) {
+    return {
+      bg: 'bg-sky-500/15 text-sky-300 border-sky-500/30',
+      label: '스지/저위험',
+    }
+  }
+  if (risk <= 9.0) {
+    return {
+      bg: 'bg-amber-500/20 text-amber-300 border-amber-500/35',
+      label: '주의',
+    }
+  }
+  return {
+    bg: 'bg-rose-500/25 text-rose-300 border-rose-500/40 font-bold',
+    label: '위험',
+  }
+}
 
 interface EmbeddedBrowserStatus {
   enabled: boolean
@@ -73,6 +124,7 @@ export function PlayClient() {
   const [recentPacket, setRecentPacket] = useState<MajsoulPacketEvent | null>(null)
 
   const game = useGameStore((s) => s.game)
+  const ourSeat = game?.our_seat ?? null
   const analysisResult = useAnalysisStore((s) => s.result)
   const historyRecords = useHistoryStore((s) => s.records)
   const botStatus = useBotStore((s) => s.status)
@@ -144,6 +196,156 @@ export function PlayClient() {
       rentai,
     }
   }, [historyRecords])
+
+  // Tenpai Analysis HUD Data
+  const tenpaiInfo = useMemo(() => {
+    if (!analysisResult) return null
+
+    let targetHand13: Hand13Result | null = null
+
+    // 1. If currently in wait13 state
+    if (analysisResult.state === 'wait13' && analysisResult.hand13) {
+      if (analysisResult.hand13.shanten === 0) {
+        targetHand13 = analysisResult.hand13
+      }
+    }
+    // 2. If in discard14 state, find if maintaining or AI-recommended discard achieves tenpai
+    else if (analysisResult.state === 'discard14' && analysisResult.hand14) {
+      const tenpaiCandidates = analysisResult.hand14.maintain.filter(
+        (c) => c.result.shanten === 0
+      )
+      if (tenpaiCandidates.length > 0) {
+        const best =
+          tenpaiCandidates.find(
+            (c) => c.discard === analysisResult.best_attack_discard
+          ) ?? tenpaiCandidates[0]
+        targetHand13 = best.result
+      }
+    }
+
+    if (!targetHand13 || targetHand13.shanten !== 0) return null
+
+
+    const waitsList = targetHand13.waits.map((w) => ({
+      tile: w.tile,
+      label: tileKorean(w.tile),
+      left: w.left,
+      agariRate: w.agari_rate,
+    }))
+
+    const allYaku = (targetHand13.yaku_ids ?? []).map((id) => ({
+      id,
+      name: getYakuName(id),
+      isDora: id >= 31 && id <= 34,
+      isRiichi: id === 2 || id === 18,
+    }))
+
+    const normalYaku = allYaku.filter((y) => !y.isDora && !y.isRiichi).map((y) => y.name)
+    const doraYaku = allYaku.filter((y) => y.isDora).map((y) => y.name)
+    const hasRiichiOpt = allYaku.some((y) => y.isRiichi)
+
+    const damaPt = Math.round(targetHand13.dama_point)
+    const riichiPt = Math.round(targetHand13.riichi_point)
+    const damaHan = targetHand13.dama_han ?? 0
+    const riichiHan = targetHand13.riichi_han ?? 0
+
+    return {
+      waits: waitsList,
+      waitsTotal: targetHand13.waits_total,
+      normalYaku,
+      doraYaku,
+      hasRiichiOpt,
+      damaPt,
+      riichiPt,
+      damaHan,
+      riichiHan,
+      isFuriten: targetHand13.is_furiten,
+      avgAgariRate: targetHand13.avg_agari_rate,
+    }
+  }, [analysisResult])
+
+  // 상대 리치 / 텐파이 대비 내 손패 위험도 및 방어 분석 HUD Data
+  const defenseInfo = useMemo(() => {
+    if (!game || ourSeat == null || !analysisResult) return null
+
+    const opponents = analysisResult.opponents ?? []
+    const riichiOpponents = opponents.filter((o) => o.is_riichi)
+    const tenpaiOpponents = opponents.filter((o) => !o.is_riichi && o.tenpai_rate >= 20)
+
+    // 상대 중 리치 상태이거나 텐파이 확률이 20% 이상인 상대가 있을 때 활성화
+    const hasThreat = riichiOpponents.length > 0 || tenpaiOpponents.length > 0
+    if (!hasThreat) return null
+
+    const tehai = game.players[ourSeat]?.tehai ?? []
+    if (tehai.length === 0) return null
+
+    const mixedRisk = analysisResult.mixed_risk ?? []
+
+    // 내 손패 고유 타패별 집계
+    const tileMap: Record<string, { tile: string; count: number; idx: number; risk: number }> = {}
+    for (const t of tehai) {
+      const idx = tileIdx(t)
+      if (!tileMap[t]) {
+        const riskVal = idx >= 0 && idx < mixedRisk.length ? mixedRisk[idx] : 0
+        tileMap[t] = {
+          tile: t,
+          count: 0,
+          idx,
+          risk: riskVal,
+        }
+      }
+      tileMap[t].count++
+    }
+
+    // 위험도 낮은 순(안전패)부터 정렬
+    const sortedHand = Object.values(tileMap).sort((a, b) => a.risk - b.risk)
+
+    // 최적 방어 타패
+    let bestDefence = null
+    if (analysisResult.best_defence_discard) {
+      const bestTile = analysisResult.best_defence_discard
+      const idx = tileIdx(bestTile)
+      const riskVal = idx >= 0 && idx < mixedRisk.length ? mixedRisk[idx] : 0
+      bestDefence = {
+        tile: bestTile,
+        label: tileKorean(bestTile),
+        risk: riskVal,
+        isGenbutsu: riskVal === 0,
+      }
+    }
+
+    const threats = opponents
+      .filter((o) => o.is_riichi || o.tenpai_rate >= 20)
+      .map((o) => {
+        const n = Math.max(1, game.num_players ?? 4)
+        const d = (o.seat - ourSeat + n) % n
+        const dir =
+          n === 3
+            ? d === 1
+              ? '하가'
+              : '상가'
+            : d === 1
+              ? '하가'
+              : d === 2
+                ? '대면'
+                : '상가'
+        const seatName = ['동', '남', '서', '북'][o.seat] ?? String(o.seat)
+        return {
+          seat: o.seat,
+          seatName,
+          dir,
+          isRiichi: o.is_riichi,
+          tenpaiRate: Math.round(o.tenpai_rate),
+        }
+      })
+
+    return {
+      threats,
+      hasRiichi: riichiOpponents.length > 0,
+      sortedHand,
+      bestDefence,
+    }
+  }, [game, ourSeat, analysisResult])
 
   // Bot engine info
   const botInfo = useMemo(() => {
@@ -1329,6 +1531,196 @@ export function PlayClient() {
                   <BotShowList items={topSuggestions} variant="tile" className="gap-1.5" />
                 )}
               </div>
+
+              {/* 🀄 텐파이 실시간 분석 HUD 카드 */}
+              {tenpaiInfo && (
+                <div className="p-3 rounded-lg border-2 border-amber-500/50 bg-gradient-to-b from-amber-500/10 to-background/60 shadow-lg space-y-2.5 animate-in fade-in zoom-in-95 duration-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 font-bold text-xs text-amber-400">
+                      <Flame className="h-4 w-4 fill-current animate-pulse text-amber-500" />
+                      <span>텐파이 (Tenpai)</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {tenpaiInfo.isFuriten && (
+                        <span className="text-[10px] px-1.5 py-0.2 rounded font-bold bg-rose-500/25 text-rose-300 border border-rose-500/40 animate-pulse">
+                          후리텐 (론 불가)
+                        </span>
+                      )}
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                        대기 총 {tenpaiInfo.waitsTotal}장
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 1. 대기패 목록 */}
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-muted-foreground block font-medium">대기패 (오름패):</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {tenpaiInfo.waits.map((w, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-zinc-950/70 border border-border/80 text-[11px]"
+                        >
+                          <span className="font-bold text-primary">{w.label}</span>
+                          <span className="text-[10px] text-muted-foreground">({w.left}장)</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 2. 성립 역 목록 */}
+                  {(tenpaiInfo.normalYaku.length > 0 || tenpaiInfo.doraYaku.length > 0) && (
+                    <div className="space-y-1 pt-0.5">
+                      <span className="text-[10px] text-muted-foreground block font-medium">성립 역:</span>
+                      <div className="flex flex-wrap gap-1">
+                        {tenpaiInfo.normalYaku.map((yaku, idx) => (
+                          <span
+                            key={idx}
+                            className="text-[10px] px-1.5 py-0.2 rounded bg-muted/80 text-foreground font-semibold border border-border/60"
+                          >
+                            {yaku}
+                          </span>
+                        ))}
+                        {tenpaiInfo.doraYaku.map((dora, idx) => (
+                          <span
+                            key={idx}
+                            className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40"
+                          >
+                            {dora}
+                          </span>
+                        ))}
+                        {tenpaiInfo.hasRiichiOpt && (
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-sky-500/15 text-sky-300 font-medium border border-sky-500/30">
+                            +리치 가능
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 3. 판수 & 점수 비교 (다마텐 vs 리치) */}
+                  <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-border/40 text-center font-mono text-[11px]">
+                    <div className="p-1.5 rounded bg-zinc-950/60 border border-border/50">
+                      <div className="text-[10px] font-sans text-muted-foreground">다마텐 화료</div>
+                      <div className="font-bold text-xs text-foreground mt-0.5">
+                        {tenpaiInfo.damaPt > 0 ? (
+                          <>
+                            {tenpaiInfo.damaHan > 0 && (
+                              <span className="text-[10px] text-primary mr-1">{tenpaiInfo.damaHan}판</span>
+                            )}
+                            <span>{tenpaiInfo.damaPt.toLocaleString()}점</span>
+                          </>
+                        ) : (
+                          <span className="text-zinc-500 text-[10px]">역 없음 (무역)</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="p-1.5 rounded bg-zinc-950/60 border border-amber-500/30">
+                      <div className="text-[10px] font-sans text-amber-400 font-medium">리치 선언 시</div>
+                      <div className="font-bold text-xs text-amber-300 mt-0.5">
+                        {tenpaiInfo.riichiPt > 0 ? (
+                          <>
+                            {tenpaiInfo.riichiHan > 0 && (
+                              <span className="text-[10px] text-amber-400 mr-1">{tenpaiInfo.riichiHan}판</span>
+                            )}
+                            <span>{tenpaiInfo.riichiPt.toLocaleString()}점</span>
+                          </>
+                        ) : (
+                          <span className="text-zinc-500 text-[10px]">—</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+
+              {/* 🛡️ 방어 / 위험패 실시간 분석 HUD 카드 */}
+              {defenseInfo && (
+                <div
+                  className={`p-3 rounded-lg border-2 shadow-lg space-y-2.5 animate-in fade-in zoom-in-95 duration-200 ${
+                    defenseInfo.hasRiichi
+                      ? 'border-rose-500/60 bg-gradient-to-b from-rose-500/15 via-rose-500/5 to-background/70'
+                      : 'border-amber-500/50 bg-gradient-to-b from-amber-500/10 via-amber-500/5 to-background/70'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 font-bold text-xs">
+                      <ShieldAlert
+                        className={`h-4 w-4 ${
+                          defenseInfo.hasRiichi ? 'text-rose-400 animate-pulse' : 'text-amber-400'
+                        }`}
+                      />
+                      <span className={defenseInfo.hasRiichi ? 'text-rose-300' : 'text-amber-300'}>
+                        방어 / 위험패 분석
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 flex-wrap justify-end">
+                      {defenseInfo.threats.map((t) => (
+                        <span
+                          key={t.seat}
+                          className={`text-[10px] px-1.5 py-0.2 rounded font-bold border ${
+                            t.isRiichi
+                              ? 'bg-rose-500/25 text-rose-300 border-rose-500/50 animate-pulse'
+                              : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                          }`}
+                        >
+                          {t.dir}({t.seatName}) {t.isRiichi ? '리치!' : `텐파이 ${t.tenpaiRate}%`}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 1. 최적 안전패 추천 */}
+                  {defenseInfo.bestDefence && (
+                    <div className="flex items-center justify-between px-2 py-1.5 rounded bg-zinc-950/70 border border-border/80">
+                      <div className="flex items-center gap-1.5">
+                        <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+                        <span className="text-[11px] font-medium text-muted-foreground">최적 안전패:</span>
+                        <span className="text-xs font-bold text-emerald-300">
+                          {defenseInfo.bestDefence.label}
+                        </span>
+                      </div>
+                      <span
+                        className={`text-[10px] px-1.5 py-0.2 rounded font-bold border ${
+                          getRiskBadgeStyle(defenseInfo.bestDefence.risk).bg
+                        }`}
+                      >
+                        {defenseInfo.bestDefence.risk.toFixed(1)}%{' '}
+                        {defenseInfo.bestDefence.isGenbutsu ? '(현물)' : ''}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* 2. 내 손패 위험도 순위 (안전 -> 위험) */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                      <span>내 손패 방총 위험도 (안전 ➔ 위험):</span>
+                      <span>방총률 %</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {defenseInfo.sortedHand.map((item, idx) => {
+                        const badge = getRiskBadgeStyle(item.risk)
+                        return (
+                          <div
+                            key={idx}
+                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] border font-mono ${badge.bg}`}
+                          >
+                            <span className="font-sans font-bold">{tileKorean(item.tile)}</span>
+                            {item.count > 1 && (
+                              <span className="text-[9px] opacity-75 font-sans">x{item.count}</span>
+                            )}
+                            <span className="text-[10px] font-bold ml-0.5">
+                              {item.risk === 0 ? '현물' : `${item.risk.toFixed(1)}%`}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* 2. 실시간 대국 요약 & 4인 점수 미니 보드 */}
               <div className="p-3 rounded-lg border border-border/70 bg-background/50 space-y-2">

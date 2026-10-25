@@ -247,6 +247,8 @@ pub fn analyze_13(info: &PlayerInfo34) -> Hand13Result {
     let mut is_furiten = false;
     let mut dama_point = 0.0;
     let mut riichi_point = 0.0;
+    let mut dama_han = 0u32;
+    let mut riichi_han = 0u32;
     let mut yaku_ids: Vec<u32> = Vec::new();
     if cur_shanten == 0 && !current_waits.is_empty() {
         // Compute dora set from indicators.
@@ -258,6 +260,8 @@ pub fn analyze_13(info: &PlayerInfo34) -> Hand13Result {
         let est = score::expectation(info, &current_waits, !is_open);
         dama_point = est.dama_point;
         riichi_point = est.riichi_point;
+        dama_han = est.dama_han;
+        riichi_han = est.riichi_han;
         yaku_ids = est.yaku_ids;
         if !est.has_yaku && is_open {
             // Open & yakuless: cannot win → zero out point expectation.
@@ -316,6 +320,8 @@ pub fn analyze_13(info: &PlayerInfo34) -> Hand13Result {
         avg_improve_waits_count: avg_improve,
         dama_point,
         riichi_point,
+        dama_han,
+        riichi_han,
         mixed_round_point,
         yaku_ids,
     }

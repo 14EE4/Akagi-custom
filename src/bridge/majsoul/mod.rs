@@ -89,12 +89,28 @@ pub fn emit_packet_event(
         is_settling,
         is_key_trigger,
         note,
+        screen_state: current_screen_state_str().to_string(),
     };
     let _ = packet_bus().send(ev);
 }
 
 static LAST_GAME_END_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 static IS_SETTLING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static IS_IN_GAME: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+pub fn is_in_game() -> bool {
+    IS_IN_GAME.load(std::sync::atomic::Ordering::SeqCst)
+}
+
+pub fn current_screen_state_str() -> &'static str {
+    if is_settling() {
+        "settling"
+    } else if is_in_game() {
+        "in_game"
+    } else {
+        "lobby"
+    }
+}
 
 /// Records the timestamp of a received/sent Majsoul Lobby message (.lq.Lobby.*).
 pub fn record_lobby_packet() {
@@ -114,6 +130,7 @@ pub fn last_lobby_packet_ms() -> u64 {
 pub fn record_game_start() {
     LAST_GAME_END_MS.store(0, std::sync::atomic::Ordering::SeqCst);
     IS_SETTLING.store(false, std::sync::atomic::Ordering::SeqCst);
+    IS_IN_GAME.store(true, std::sync::atomic::Ordering::SeqCst);
 }
 
 /// Records the timestamp when a game officially ends (MjaiEvent::EndGame).
@@ -122,6 +139,7 @@ pub fn record_game_end() {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis() as u64;
+    IS_IN_GAME.store(false, std::sync::atomic::Ordering::SeqCst);
     LAST_GAME_END_MS.store(now, std::sync::atomic::Ordering::SeqCst);
     IS_SETTLING.store(true, std::sync::atomic::Ordering::SeqCst);
     emit_packet_event(

@@ -371,6 +371,13 @@ pub struct MajsoulPacketEvent {
     /// Human-readable explanation or notes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
+    /// Resolved overall screen state: "in_game", "settling", "lobby".
+    #[serde(default = "default_screen_state")]
+    pub screen_state: String,
+}
+
+fn default_screen_state() -> String {
+    "lobby".to_string()
 }
 
 #[cfg(test)]

@@ -21,12 +21,18 @@ export function Toaster() {
       richColors={false}
       closeButton
       duration={DEFAULT_DURATION_MS}
+      offset={{ top: '3.5rem', right: '0.75rem' }}
+      style={
+        {
+          '--width': '16.5rem',
+        } as React.CSSProperties
+      }
       toastOptions={{
         classNames: {
           toast:
-            'group !bg-popover !text-popover-foreground !ring-1 !ring-foreground/10 !rounded-lg !shadow-lg !border-l-4 !pl-4',
-          title: 'text-sm font-medium',
-          description: 'text-xs text-muted-foreground',
+            'group !bg-popover !text-popover-foreground !ring-1 !ring-foreground/10 !rounded-lg !shadow-xl !border-l-4 !pl-3.5 !pr-7 !py-2.5 !w-[16.5rem] !max-w-[16.5rem]',
+          title: 'text-xs font-semibold leading-snug',
+          description: 'text-[11px] text-muted-foreground leading-tight',
         },
       }}
     />

@@ -3,7 +3,13 @@
 공식 Akagi v3 레포지토리 기반의 개인 커스텀 빌드 및 패치 저장소입니다.
 
 - **공식 원본 레포지토리 (`upstream`)**: [https://github.com/shinkuan/Akagi](https://github.com/shinkuan/Akagi)
-- **커스텀 프라이빗 레포지토리 (`origin`)**: [https://github.com/14EE4/Akagi-custom](https://github.com/14EE4/Akagi-custom)
+- **커스텀 공개 레포지토리 (`origin`)**: [https://github.com/14EE4/Akagi-custom](https://github.com/14EE4/Akagi-custom)
+
+> [!WARNING]
+> ### 면책 조항 및 이용 주의사항 (Disclaimer)
+> - **연구 및 학습 목적**: 본 프로젝트는 리치 마작 인공지능(AI) 알고리즘 연구, 브라우저 DevTools 프로토콜(CDP) 분석 및 개인 학습 목적으로 포크·개발된 오픈소스 소프트웨어입니다.
+> - **사용자 책임**: 본 소프트웨어를 실제 온라인 게임 서비스에서 사용하여 발생하는 모든 불이익(게임사 이용약관 위반에 따른 계정 제재, 영구 정지, 점수 몰수 등)에 대한 책임은 **전적으로 사용자 본인**에게 있으며, 원작자 및 포크 기여자는 이에 대해 어떠한 법적·도의적 책임도 지지 않습니다.
+> - **이용약관 준수**: 게임 서비스 제공사(요스타, 캣푸드 등)의 최종 사용자 라이선스 계약(EULA) 및 이용약관(ToS)을 항상 준수하시기 바라며, 불법적/상업적 악용을 엄격히 금지합니다.
 
 ---
 

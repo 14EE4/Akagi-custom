@@ -1540,9 +1540,19 @@ export function PlayClient() {
                       </div>
                       <div className="flex items-center justify-between text-[9px] text-zinc-400">
                         <span>
-                          정산 상태:{' '}
-                          <span className={recentPacket.is_settling ? 'text-amber-400 font-semibold' : 'text-sky-400 font-semibold'}>
-                            {recentPacket.is_settling ? '정산중 (GameEnd)' : '로비 (Lobby)'}
+                          화면 상태:{' '}
+                          <span className={
+                            recentPacket.is_settling
+                              ? 'text-amber-400 font-semibold'
+                              : autoQueueStatus.state === 'in_game'
+                              ? 'text-emerald-400 font-semibold'
+                              : 'text-sky-400 font-semibold'
+                          }>
+                            {recentPacket.is_settling
+                              ? '정산중 (GameEnd)'
+                              : autoQueueStatus.state === 'in_game'
+                              ? '대국 진행 중 (InGame)'
+                              : '로비 (Lobby)'}
                           </span>
                         </span>
                         {recentPacket.note && (
@@ -1623,7 +1633,9 @@ export function PlayClient() {
                       <div
                         key={i}
                         className={`leading-relaxed break-all ${
-                          log.includes('패킷 ★') || log.includes('트리거')
+                          log.includes('ConfirmClick') || log.includes('확인 클릭 실행')
+                            ? 'text-amber-400 font-bold'
+                            : log.includes('패킷 ★') || log.includes('트리거')
                             ? 'text-purple-300 font-bold'
                             : log.includes('패킷')
                             ? 'text-sky-300'

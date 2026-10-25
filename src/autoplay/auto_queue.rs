@@ -192,8 +192,8 @@ pub async fn auto_queue_watcher(
 
                         let mut aborted = false;
 
-                        // 정산 화면을 넘기기 위한 확인 클릭 루프
-                        let required_confirms = aq.confirm_clicks.clamp(1, 10);
+                        // 정산 화면을 넘기기 위한 확인 클릭 루프 (최소 4회 기본 보장)
+                        let required_confirms = aq.confirm_clicks.max(4).clamp(1, 10);
 
                         for click_idx in 1..=required_confirms {
                             if !cfg.read().await.autoplay.auto_queue.enabled {
@@ -201,8 +201,8 @@ pub async fn auto_queue_watcher(
                                 break;
                             }
 
-                            // 로비 패킷 수신으로 이미 메인 로비에 복귀한 것이 감지되면(최소 3회 이상 완료 후) 확인 클릭 중단
-                            if click_idx > 3 && !crate::bridge::majsoul::is_settling() {
+                            // 로비 패킷 수신으로 이미 메인 로비에 복귀한 것이 감지되면(최소 4회 완료 후) 확인 클릭 중단
+                            if click_idx > 4 && !crate::bridge::majsoul::is_settling() {
                                 info!(
                                     "auto_queue: 메인 로비 복귀 감지됨 (is_settling=false) -> 확인 클릭({}회 완료 후) 조기 종료",
                                     click_idx.saturating_sub(1)
@@ -214,6 +214,14 @@ pub async fn auto_queue_watcher(
                             info!(
                                 "auto_queue: clicking confirm ({click_idx}/{required_confirms}) at ({:.2}, {:.2})",
                                 aq.confirm_x, aq.confirm_y
+                            );
+                            crate::bridge::majsoul::emit_packet_event(
+                                format!("ConfirmClick ({click_idx}/{required_confirms})"),
+                                "CLICK",
+                                "Local",
+                                true,
+                                false,
+                                Some(format!("정산 확인 클릭 실행 ({click_idx}/{required_confirms})")),
                             );
                             if let Err(e) = execute_click_with_indicator(
                                 &ctx,
@@ -229,8 +237,8 @@ pub async fn auto_queue_watcher(
 
                             tokio::time::sleep(confirm_delay).await;
 
-                            // 클릭 후 로비 복귀 확인 (최소 3회 이상 완료 후)
-                            if click_idx >= 3 && !crate::bridge::majsoul::is_settling() {
+                            // 클릭 후 로비 복귀 확인 (최소 4회 완료 후)
+                            if click_idx >= 4 && !crate::bridge::majsoul::is_settling() {
                                 info!(
                                     "auto_queue: 메인 로비 복귀 감지됨 (is_settling=false) -> 확인 클릭({click_idx}회 완료 후) 조기 종료"
                                 );

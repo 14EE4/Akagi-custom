@@ -74,3 +74,6 @@ native_bot/out/
 
 # ZCode session artifacts
 .zcode/
+
+# Local AI agent context & personal notes
+AGENTS.md

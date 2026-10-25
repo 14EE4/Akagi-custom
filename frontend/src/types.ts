@@ -473,6 +473,8 @@ export type Hand13Result = {
   avg_improve_waits_count: number
   dama_point: number
   riichi_point: number
+  dama_han?: number
+  riichi_han?: number
   mixed_round_point: number
   yaku_ids: number[]
 }

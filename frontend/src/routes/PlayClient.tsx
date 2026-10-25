@@ -6,6 +6,7 @@ import {
   ArrowLeftRight,
   Bot,
   Crosshair,
+  Flame,
   ExternalLink,
   Gamepad2,
   Globe,
@@ -33,7 +34,8 @@ import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { HAS_TAURI, invoke, listen } from '@/lib/tauri'
-import type { MajsoulPacketEvent } from '@/types'
+import type { MajsoulPacketEvent, Hand13Result } from '@/types'
+import { getYakuName } from '@/lib/yakuNames'
 import { pickShow, visibleItems } from '@/lib/botShow'
 import { useNotifyStore } from '@/stores/notifyStore'
 import { useConfigStore } from '@/stores/configStore'
@@ -144,6 +146,93 @@ export function PlayClient() {
       rentai,
     }
   }, [historyRecords])
+
+  // Tenpai Analysis HUD Data
+  const tenpaiInfo = useMemo(() => {
+    if (!analysisResult) return null
+
+    let targetHand13: Hand13Result | null = null
+
+    // 1. If currently in wait13 state
+    if (analysisResult.state === 'wait13' && analysisResult.hand13) {
+      if (analysisResult.hand13.shanten === 0) {
+        targetHand13 = analysisResult.hand13
+      }
+    }
+    // 2. If in discard14 state, find if maintaining or AI-recommended discard achieves tenpai
+    else if (analysisResult.state === 'discard14' && analysisResult.hand14) {
+      const tenpaiCandidates = analysisResult.hand14.maintain.filter(
+        (c) => c.result.shanten === 0
+      )
+      if (tenpaiCandidates.length > 0) {
+        const best =
+          tenpaiCandidates.find(
+            (c) => c.discard === analysisResult.best_attack_discard
+          ) ?? tenpaiCandidates[0]
+        targetHand13 = best.result
+      }
+    }
+
+    if (!targetHand13 || targetHand13.shanten !== 0) return null
+
+    const tileKorean = (t: string) => {
+      const suits: Record<string, string> = { m: '만', p: '통', s: '삭' }
+      const honors: Record<string, string> = {
+        E: '동',
+        S: '남',
+        W: '서',
+        N: '북',
+        P: '백',
+        F: '발',
+        C: '중',
+      }
+      if (honors[t]) return honors[t]
+      if (t.endsWith('r')) {
+        const s = t[t.length - 2]
+        return `적${t[0]}${suits[s] ?? s}`
+      }
+      const s = t[t.length - 1]
+      if (suits[s]) return `${t.slice(0, -1)}${suits[s]}`
+      return t
+    }
+
+    const waitsList = targetHand13.waits.map((w) => ({
+      tile: w.tile,
+      label: tileKorean(w.tile),
+      left: w.left,
+      agariRate: w.agari_rate,
+    }))
+
+    const allYaku = (targetHand13.yaku_ids ?? []).map((id) => ({
+      id,
+      name: getYakuName(id),
+      isDora: id >= 31 && id <= 34,
+      isRiichi: id === 2 || id === 18,
+    }))
+
+    const normalYaku = allYaku.filter((y) => !y.isDora && !y.isRiichi).map((y) => y.name)
+    const doraYaku = allYaku.filter((y) => y.isDora).map((y) => y.name)
+    const hasRiichiOpt = allYaku.some((y) => y.isRiichi)
+
+    const damaPt = Math.round(targetHand13.dama_point)
+    const riichiPt = Math.round(targetHand13.riichi_point)
+    const damaHan = targetHand13.dama_han ?? 0
+    const riichiHan = targetHand13.riichi_han ?? 0
+
+    return {
+      waits: waitsList,
+      waitsTotal: targetHand13.waits_total,
+      normalYaku,
+      doraYaku,
+      hasRiichiOpt,
+      damaPt,
+      riichiPt,
+      damaHan,
+      riichiHan,
+      isFuriten: targetHand13.is_furiten,
+      avgAgariRate: targetHand13.avg_agari_rate,
+    }
+  }, [analysisResult])
 
   // Bot engine info
   const botInfo = useMemo(() => {
@@ -1329,6 +1418,109 @@ export function PlayClient() {
                   <BotShowList items={topSuggestions} variant="tile" className="gap-1.5" />
                 )}
               </div>
+
+              {/* 🀄 텐파이 실시간 분석 HUD 카드 */}
+              {tenpaiInfo && (
+                <div className="p-3 rounded-lg border-2 border-amber-500/50 bg-gradient-to-b from-amber-500/10 to-background/60 shadow-lg space-y-2.5 animate-in fade-in zoom-in-95 duration-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 font-bold text-xs text-amber-400">
+                      <Flame className="h-4 w-4 fill-current animate-pulse text-amber-500" />
+                      <span>텐파이 (Tenpai)</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {tenpaiInfo.isFuriten && (
+                        <span className="text-[10px] px-1.5 py-0.2 rounded font-bold bg-rose-500/25 text-rose-300 border border-rose-500/40 animate-pulse">
+                          후리텐 (론 불가)
+                        </span>
+                      )}
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                        대기 총 {tenpaiInfo.waitsTotal}장
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 1. 대기패 목록 */}
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-muted-foreground block font-medium">대기패 (오름패):</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {tenpaiInfo.waits.map((w, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-zinc-950/70 border border-border/80 text-[11px]"
+                        >
+                          <span className="font-bold text-primary">{w.label}</span>
+                          <span className="text-[10px] text-muted-foreground">({w.left}장)</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 2. 성립 역 목록 */}
+                  {(tenpaiInfo.normalYaku.length > 0 || tenpaiInfo.doraYaku.length > 0) && (
+                    <div className="space-y-1 pt-0.5">
+                      <span className="text-[10px] text-muted-foreground block font-medium">성립 역:</span>
+                      <div className="flex flex-wrap gap-1">
+                        {tenpaiInfo.normalYaku.map((yaku, idx) => (
+                          <span
+                            key={idx}
+                            className="text-[10px] px-1.5 py-0.2 rounded bg-muted/80 text-foreground font-semibold border border-border/60"
+                          >
+                            {yaku}
+                          </span>
+                        ))}
+                        {tenpaiInfo.doraYaku.map((dora, idx) => (
+                          <span
+                            key={idx}
+                            className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40"
+                          >
+                            {dora}
+                          </span>
+                        ))}
+                        {tenpaiInfo.hasRiichiOpt && (
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-sky-500/15 text-sky-300 font-medium border border-sky-500/30">
+                            +리치 가능
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 3. 판수 & 점수 비교 (다마텐 vs 리치) */}
+                  <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-border/40 text-center font-mono text-[11px]">
+                    <div className="p-1.5 rounded bg-zinc-950/60 border border-border/50">
+                      <div className="text-[10px] font-sans text-muted-foreground">다마텐 화료</div>
+                      <div className="font-bold text-xs text-foreground mt-0.5">
+                        {tenpaiInfo.damaPt > 0 ? (
+                          <>
+                            {tenpaiInfo.damaHan > 0 && (
+                              <span className="text-[10px] text-primary mr-1">{tenpaiInfo.damaHan}판</span>
+                            )}
+                            <span>{tenpaiInfo.damaPt.toLocaleString()}점</span>
+                          </>
+                        ) : (
+                          <span className="text-zinc-500 text-[10px]">역 없음 (무역)</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="p-1.5 rounded bg-zinc-950/60 border border-amber-500/30">
+                      <div className="text-[10px] font-sans text-amber-400 font-medium">리치 선언 시</div>
+                      <div className="font-bold text-xs text-amber-300 mt-0.5">
+                        {tenpaiInfo.riichiPt > 0 ? (
+                          <>
+                            {tenpaiInfo.riichiHan > 0 && (
+                              <span className="text-[10px] text-amber-400 mr-1">{tenpaiInfo.riichiHan}판</span>
+                            )}
+                            <span>{tenpaiInfo.riichiPt.toLocaleString()}점</span>
+                          </>
+                        ) : (
+                          <span className="text-zinc-500 text-[10px]">—</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* 2. 실시간 대국 요약 & 4인 점수 미니 보드 */}
               <div className="p-3 rounded-lg border border-border/70 bg-background/50 space-y-2">

@@ -5,6 +5,13 @@
 - **공식 원본 레포지토리 (`upstream`)**: [https://github.com/shinkuan/Akagi](https://github.com/shinkuan/Akagi)
 - **커스텀 공개 레포지토리 (`origin`)**: [https://github.com/14EE4/Akagi-custom](https://github.com/14EE4/Akagi-custom)
 
+> [!CAUTION]
+> ### 🛑 프로젝트 개발 및 유지보수 중단 안내 (Notice: Discontinued)
+> 작혼(Majsoul) 일본 서버 테스트 계정이 영구 정지(Ban)됨에 따라, 실전 패킷 검증 및 인게임 연동 테스트가 불가능해져 본 레포지토리의 개발 및 유지보수를 공식적으로 중단합니다.
+> - **업데이트 중단**: 신규 기능 추가, 버그 패치 및 Mortal 모델/런타임 업데이트가 중단됩니다.
+> - **기존 산출물 유지**: 현재까지 구현된 패치 내역과 빌드 파일(`akagi.exe`)은 현 상태 그대로 보존됩니다.
+> - 자세한 사항은 [이슈 #51 (개발 및 유지보수 중단 안내)](https://github.com/14EE4/Akagi-custom/issues/51)을 참고해 주시기 바랍니다.
+
 > [!WARNING]
 > ### 면책 조항 및 이용 주의사항 (Disclaimer)
 > - **연구 및 학습 목적**: 본 프로젝트는 리치 마작 인공지능(AI) 알고리즘 연구, 브라우저 DevTools 프로토콜(CDP) 분석 및 개인 학습 목적으로 포크·개발된 오픈소스 소프트웨어입니다.
